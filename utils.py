@@ -55,9 +55,9 @@ def read_corr(filename):
     # Reading Correlator
     corr=[]
     t=[]
-    f=open(file_corr,'r')
+    f=open(filename,'r')
 
-    with open(file_corr) as g:
+    with open(filename) as g:
         first_line = g.readline().strip('\n')
         x=first_line.split()
         cnfg=int(x[0])
