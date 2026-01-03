@@ -5,8 +5,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "YAAC"
 version = "0.1.0"
-description = "YAAC analysis utilities"
-requires-python = ">=3.9"
+description = "YAAC (Yet Another Analysis Code)"
+requires-python = ">=3.7"
 
 [tool.setuptools.packages.find]
 where = ["."]
