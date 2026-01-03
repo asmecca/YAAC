@@ -109,7 +109,7 @@ def read_corr(filename):
     jk_corr = [None]*time
     for t in range(0,time):
         jk_corr[t] = Jackknife(t_C[t])
-    return C,jk_corr
+    return jk_corr
 
 def plot_corr(corr,xlabel,ylabel,yscale=None,data_label=None,color='blue',marker='o',ncol=1,save=None):
     for t in range(0,len(corr)):
