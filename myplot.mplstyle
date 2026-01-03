@@ -1,0 +1,40 @@
+# Plots
+
+# my_custom.mplstyle
+# Style file to capture your rc settings:
+# - font size 16
+# - use LaTeX (with amsmath in the preamble)
+# - tick directions inwards, show top/right ticks
+# - enable minor ticks visibility
+
+font.size: 12
+
+text.usetex: True
+# Use a list for the LaTeX preamble; backslashes must be escaped.
+text.latex.preamble: ['\\usepackage{amsmath}']
+
+# Tick directions and placement
+xtick.direction: in
+ytick.direction: in
+xtick.top: True
+ytick.right: True
+
+# Attempt to enable minor ticks globally (makes minor ticks visible where minor locators exist)
+xtick.minor.visible: True
+ytick.minor.visible: True
+
+lines.linestyle: none
+
+errorbar.capsize: 4
+
+#lines.markersize: 6
+#lines.markeredgewidth: 1.0
+lines.markeredgecolor: auto
+lines.markerfacecolor: auto
+
+
+# Optional: you can also tune minor/major tick sizes if you like
+#xtick.major.size: 6
+#ytick.major.size: 6
+#xtick.minor.size: 3
+#ytick.minor.size: 3
