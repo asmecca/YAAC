@@ -377,5 +377,8 @@ def effective_mass(jack_C, method="cosh"):
 
 
 #######
-# TODO: Fit correlated and uncorrelated
+# TODO:
+# - Jackknife addition
+# - plot multiple jacks
+# - Fit correlated and uncorrelated
 #######
