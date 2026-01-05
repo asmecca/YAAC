@@ -425,7 +425,8 @@ def effective_mass(jack_C, method="cosh"):
 
         elif method == "cosh":
             guess = log_meff_guess(jack_C[t], jack_C[t + 1])
-            guess = abs(guess)
+            if guess is not None:
+                guess = abs(guess)
 
             if guess is None or not np.isfinite(guess):
                 jack_meff.append(None)
