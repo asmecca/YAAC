@@ -81,24 +81,8 @@ class Jackknife:
 
         return obj
 
-def _get_jackknife_samples(corr):
-    """
-    Return jackknife samples as an array of shape (Njack, Nt).
-    Compatible with different Jackknife constructions.
-    """
-    if hasattr(corr, "samples"):
-        return corr.samples
-
-    if hasattr(corr, "jack"):
-        return np.asarray(corr.jack)
-
-    if hasattr(corr, "data"):
-        return np.asarray(corr.data)
-
-    raise AttributeError(
-        "Jackknife object has no accessible jackknife samples "
-        "(expected .samples, .jack, or .data)"
-    )
+def _get_jackknife_samples(jk):
+    return np.asarray(jk.jk_samples)
 
     
 def read_corr(filename):
@@ -149,9 +133,12 @@ def plot_corr(corr,xlabel,ylabel,yscale=None,data_label=None,color='blue',marker
         fig.savefig(save)
     plt.show()
 
-def plot_multi_corr(list_corr,xlabel,ylabel,yscale=None,list_label=None,ncol=1,save=None,x_offset=None):
+def plot_multi_corr(list_corr,xlabel,ylabel,ylim=None,yscale=None,list_label=None,ncol=1,save=None,x_offset=None):
     plt.ylabel(ylabel)
-    plt.xlabel(xlabel)    
+    plt.xlabel(xlabel)
+    if ylim is not None:
+        y_i, y_f = ylim
+        plt.ylim(y_i,y_f)
     if yscale is not None:
         plt.yscale(yscale)
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
@@ -520,70 +507,80 @@ def jackknife_fit(corrs, x, fit_func, p0, fit_range=None, correlated=False, cov=
     chi2_red_median : list of float
         Median reduced chi^2 for each correlator.
     """
+    # ---- corrs = list of timeslices ----
+    if not isinstance(corrs, (list, tuple)):
+        raise TypeError("corrs must be a list of Jackknife objects (one per timeslice)")
 
-    fit_params = []
-    chi2_red_median = []
+    Nt = len(corrs)
+    if Nt == 0:
+        raise ValueError("Empty correlator list")
+
+    Nj = corrs[0].N
+
+    data_all = np.zeros((Nj, Nt))
+    for t, jk in enumerate(corrs):
+        if jk.N != Nj:
+            raise ValueError("Inconsistent number of jackknife bins")
+        data_all[:, t] = jk.jk_samples
 
     # Fit window
     if fit_range is not None:
         tmin, tmax = fit_range
+        data_all = data_all[:, tmin:tmax]
         x_fit = x[tmin:tmax]
     else:
         x_fit = x
-        tmin, tmax = 0, len(x)
 
-    for corr in corrs:
-        samples = _get_jackknife_samples(corr)
-        data = samples[:, tmin:tmax]
-        #data = corr.samples[:, tmin:tmax]   # (Njack, Nt_fit)
-        Nj, Nt = data.shape
-        npar = len(p0)
+    Nj, Nt_fit = data_all.shape
+    npar = len(p0)
+    dof = Nt_fit - npar
+    if dof <= 0:
+        raise ValueError("Non-positive degrees of freedom")
+    
 
-        params_jack = np.zeros((Nj, npar))
-        chi2_red = np.zeros(Nj)
+    params_jack = np.zeros((Nj, npar))
+    chi2_red = np.zeros(Nj)
 
-        # Covariance handling
+    # Covariance handling
+    if correlated:
+        if cov is None:
+            raise ValueError("Covariance matrix must be provided for correlated fits.")
+        cov_fit = cov[tmin:tmax, tmin:tmax]
+        #cov_fit += 1e-12 * np.eye(Nt)
+        L = np.linalg.cholesky(cov_fit)
+
+    for i in range(Nj):
+        y = data_all[i]
+
         if correlated:
-            if cov is None:
-                raise ValueError("Covariance matrix must be provided for correlated fits.")
-            cov_fit = cov[tmin:tmax, tmin:tmax]
-            #cov_fit += 1e-12 * np.eye(Nt)
-            L = np.linalg.cholesky(cov_fit)
+            popt, _ = curve_fit(
+                fit_func,
+                x_fit,
+                y,
+                p0=p0,
+                sigma=cov_fit,
+                absolute_sigma=absolute_sigma
+            )
+            r = y - fit_func(x_fit, *popt)
+            ychi = np.linalg.solve(L, r)
+            chi2 = np.dot(ychi, ychi)
+        else:
+            popt, _ = curve_fit(
+                fit_func,
+                x_fit,
+                y,
+                p0=p0
+            )
+            r = y - fit_func(x_fit, *popt)
+            chi2 = np.sum(r**2)
 
-        dof = Nt - npar
+        params_jack[i] = popt
+        chi2_red[i] = chi2 / dof
 
-        for i in range(Nj):
-            y = data[i]
+    #fit_params.append(params_jack)
+    #chi2_red_median.append(np.median(chi2_red))
 
-            if correlated:
-                popt, _ = curve_fit(
-                    fit_func,
-                    x_fit,
-                    y,
-                    p0=p0,
-                    sigma=cov_fit,
-                    absolute_sigma=absolute_sigma
-                )
-                r = y - fit_func(x_fit, *popt)
-                ychi = np.linalg.solve(L, r)
-                chi2 = np.dot(ychi, ychi)
-            else:
-                popt, _ = curve_fit(
-                    fit_func,
-                    x_fit,
-                    y,
-                    p0=p0
-                )
-                r = y - fit_func(x_fit, *popt)
-                chi2 = np.sum(r**2)
-
-            params_jack[i] = popt
-            chi2_red[i] = chi2 / dof
-
-        fit_params.append(params_jack)
-        chi2_red_median.append(np.median(chi2_red))
-
-    return fit_params, chi2_red_median
+    return params_jack, np.median(chi2_red)
     
 
 
