@@ -128,6 +128,33 @@ def plot_corr(corr,xlabel,ylabel,yscale=None,data_label=None,color='blue',marker
         fig.savefig(save)
     plt.show()
 
+def plot_multi_corr(list_corr,xlabel,ylabel,yscale=None,list_label=None,ncol=1,save=None):
+    plt.ylabel(ylabel)
+    plt.xlabel(xlabel)    
+    if yscale is not None:
+        plt.yscale(yscale)
+    colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    markers = ['o', 's', '^', 'v', 'D', '*', 'P', 'X']
+    for i in range(0,len(list_corr)):
+        color = colors[i % len(colors)]
+        marker = markers[i % len(markers)]        
+        corr = list_corr[i]
+        if list_label is not None:
+            data_label = list_label[i]
+        else:
+            data_label = None
+        for t in range(0,len(corr)):
+            if t==0 and data_label is not None:
+                plt.errorbar(x=t,y=corr[t].mean,yerr=corr[t].std,color=color,fmt=marker,label=data_label)
+            else:
+                plt.errorbar(x=t,y=corr[t].mean,yerr=corr[t].std,color=color,fmt=marker)
+        if data_label is not None:
+            plt.legend(loc='best',ncol=ncol)
+    if save is not None:
+        fig=plt.gcf()
+        fig.savefig(save)
+    plt.show()
+    
 
 def jackknife_covariance(jk):
     """
