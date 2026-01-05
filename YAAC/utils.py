@@ -296,6 +296,26 @@ def jack_mul_d(jk1,d):
     samples = jk1.jk_samples * d
     return Jackknife.from_samples(samples)
 
+def jack_div_d(jk1,d):
+    """
+    Divide a Jackknife object and a double sample-by-sample.
+
+    Parameters
+    ----------
+    jk1 : Jackknife
+        Objects with identical N and compatible shapes
+
+    Returns
+    -------
+    Jackknife
+        New jackknifed object representing the product
+    """
+    if isinstance(d,float) is False:
+        raise ValueError("d is not a float")
+
+    samples = jk1.jk_samples / d
+    return Jackknife.from_samples(samples)
+
 def multiply_corrs(corr1,corr2):
     if len(corr1) != len(corr2):
         raise ValueError("Correlators must have the same length")
@@ -353,6 +373,15 @@ def divide_corrs(corr1,corr2):
     
     return res
 
+def divide_corr_d(corr1,d):
+    if isinstance(d,float) is False:
+        raise ValueError("d is not a float")
+
+    res=[None]*len(corr1)
+    for t in range(0,len(corr1)):
+        res[t] = jack_div_d(corr1[t],d)
+    
+    return res
 
 
 def find_root_newton(d, root_function, guess, tol=1e-15, maxiter=100):
