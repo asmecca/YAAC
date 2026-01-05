@@ -133,10 +133,11 @@ def read_corr(filename):
 
 def plot_corr(corr,xlabel,ylabel,yscale=None,data_label=None,color='blue',marker='o',ncol=1,save=None):
     for t in range(0,len(corr)):
-        if t==0 and data_label is not None:
-            plt.errorbar(x=t,y=corr[t].mean,yerr=corr[t].std,color=color,fmt=marker,label=data_label)
-        else:
-            plt.errorbar(x=t,y=corr[t].mean,yerr=corr[t].std,color=color,fmt=marker)
+        if corr[t] is not None:
+            if t==0 and data_label is not None:
+                plt.errorbar(x=t,y=corr[t].mean,yerr=corr[t].std,color=color,fmt=marker,label=data_label)
+            else:
+                plt.errorbar(x=t,y=corr[t].mean,yerr=corr[t].std,color=color,fmt=marker)
     if data_label is not None:
         plt.legend(loc='best',ncol=ncol)
     plt.ylabel(ylabel)
