@@ -387,7 +387,7 @@ def log_meff_guess(jack_C_t, jack_C_tp1):
     """
     Central-value log effective mass used as initial guess.
     """
-    if jack_C_t.mean <= 0 or jack_C_tp1.mean <= 0:
+    if jack_C_t.mean < 0 or jack_C_tp1.mean <= 0:
         return None
 
     return np.log(jack_C_t.mean / jack_C_tp1.mean)
