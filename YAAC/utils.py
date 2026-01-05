@@ -583,6 +583,38 @@ def jackknife_fit(corrs, x, fit_func, p0, fit_range=None, correlated=False, cov=
     return params_jack, np.median(chi2_red)
     
 
+def format_with_error(value, error, nsig=2):
+    """
+    Format a value with uncertainty as x.xxx(yy).
+    
+    Parameters
+    ----------
+    value : float
+    error : float
+    nsig : int
+        Number of significant digits for the error (default 2).
+    """
+    if error <= 0:
+        return f"{value}"
+
+    # Order of magnitude of the error
+    exp = int(np.floor(np.log10(error)))
+    
+    # Rounded error with nsig significant digits
+    err_rounded = round(error, -exp + (nsig - 1))
+    
+    # Number of decimal places to show
+    decimals = max(0, -(exp - (nsig - 1)))
+    
+    # Rounded value
+    val_rounded = round(value, decimals)
+
+    # Error in integer form
+    err_int = int(round(err_rounded * 10**decimals))
+
+    fmt = f"{{:.{decimals}f}}({{}})"
+    return fmt.format(val_rounded, err_int)
+
 
 #######
 # TODO:
