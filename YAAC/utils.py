@@ -81,6 +81,26 @@ class Jackknife:
 
         return obj
 
+def _get_jackknife_samples(corr):
+    """
+    Return jackknife samples as an array of shape (Njack, Nt).
+    Compatible with different Jackknife constructions.
+    """
+    if hasattr(corr, "samples"):
+        return corr.samples
+
+    if hasattr(corr, "jack"):
+        return np.asarray(corr.jack)
+
+    if hasattr(corr, "data"):
+        return np.asarray(corr.data)
+
+    raise AttributeError(
+        "Jackknife object has no accessible jackknife samples "
+        "(expected .samples, .jack, or .data)"
+    )
+
+    
 def read_corr(filename):
     # Reading Correlator
     corr=[]
@@ -478,7 +498,9 @@ def jackknife_fit(corrs, x, fit_func, p0, fit_range=None, correlated=False, cov=
         tmin, tmax = 0, len(x)
 
     for corr in corrs:
-        data = corr.samples[:, tmin:tmax]   # (Njack, Nt_fit)
+        samples = _get_jackknife_samples(corr)
+        data = samples[:, tmin:tmax]
+        #data = corr.samples[:, tmin:tmax]   # (Njack, Nt_fit)
         Nj, Nt = data.shape
         npar = len(p0)
 
