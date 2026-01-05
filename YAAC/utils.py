@@ -210,6 +210,37 @@ def jackknife_covariance(jk):
 
     return cov
 
+def jack_add(jk1,jk2):
+    """
+    Add two Jackknife objects sample-by-sample.
+
+    Parameters
+    ----------
+    jk1, jk2 : Jackknife
+        Objects with identical N and compatible shapes
+
+    Returns
+    -------
+    Jackknife
+        New jackknifed object representing the product
+    """
+
+    if jk1.N != jk2.N:
+        raise ValueError("Jackknife objects must have the same N")
+
+    samples = jk1.jk_samples + jk2.jk_samples
+    return Jackknife.from_samples(samples)
+
+def add_corrs(corr1,corr2):
+    if len(corr1) != len(corr2):
+        raise ValueError("Correlators must have the same length")
+
+    res=[None]*len(corr1)
+    for t in range(0,len(corr1)):
+        res[t] = jack_add(corr1[t],corr2[t])
+    
+    return res
+
 def jack_mul(jk1,jk2):
     """
     Multiply two Jackknife objects sample-by-sample.
