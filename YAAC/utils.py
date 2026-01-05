@@ -283,6 +283,26 @@ def jack_mul(jk1,jk2):
     samples = jk1.jk_samples * jk2.jk_samples
     return Jackknife.from_samples(samples)
 
+def jack_mul_d(jk1,d):
+    """
+    Multiply a Jackknife object and a double sample-by-sample.
+
+    Parameters
+    ----------
+    jk1 : Jackknife
+        Objects with identical N and compatible shapes
+
+    Returns
+    -------
+    Jackknife
+        New jackknifed object representing the product
+    """
+    if d is not float:
+        raise ValueError("d is not a float")
+
+    samples = jk1.jk_samples * d
+    return Jackknife.from_samples(samples)
+
 def multiply_corrs(corr1,corr2):
     if len(corr1) != len(corr2):
         raise ValueError("Correlators must have the same length")
@@ -290,6 +310,15 @@ def multiply_corrs(corr1,corr2):
     res=[None]*len(corr1)
     for t in range(0,len(corr1)):
         res[t] = jack_mul(corr1[t],corr2[t])
+    
+    return res
+
+def multiply_corr_d(corr1,d):
+    if d is not float:
+        raise ValueError("d is not a float")
+    res=[None]*len(corr1)
+    for t in range(0,len(corr1)):
+        res[t] = jack_mul_d(corr1[t],d)
     
     return res
 
