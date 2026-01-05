@@ -149,7 +149,7 @@ def plot_corr(corr,xlabel,ylabel,yscale=None,data_label=None,color='blue',marker
         fig.savefig(save)
     plt.show()
 
-def plot_multi_corr(list_corr,xlabel,ylabel,yscale=None,list_label=None,ncol=1,save=None):
+def plot_multi_corr(list_corr,xlabel,ylabel,yscale=None,list_label=None,ncol=1,save=None,x_offset=None):
     plt.ylabel(ylabel)
     plt.xlabel(xlabel)    
     if yscale is not None:
@@ -160,15 +160,18 @@ def plot_multi_corr(list_corr,xlabel,ylabel,yscale=None,list_label=None,ncol=1,s
         color = colors[i % len(colors)]
         marker = markers[i % len(markers)]        
         corr = list_corr[i]
+        offset=0.0
+        if x_offset is not None:
+            offset=x_offset
         if list_label is not None:
             data_label = list_label[i]
         else:
             data_label = None
         for t in range(0,len(corr)):
             if t==0 and data_label is not None:
-                plt.errorbar(x=t,y=corr[t].mean,yerr=corr[t].std,color=color,fmt=marker,label=data_label)
+                plt.errorbar(x=t+i*offset,y=corr[t].mean,yerr=corr[t].std,color=color,fmt=marker,label=data_label)
             else:
-                plt.errorbar(x=t,y=corr[t].mean,yerr=corr[t].std,color=color,fmt=marker)
+                plt.errorbar(x=t+i*offset,y=corr[t].mean,yerr=corr[t].std,color=color,fmt=marker)
         if data_label is not None:
             plt.legend(loc='best',ncol=ncol)
     if save is not None:
@@ -297,7 +300,7 @@ def jack_mul_d(jk1,d):
     Jackknife
         New jackknifed object representing the product
     """
-    if d is not float:
+    if isinstance(d,float) is False:
         raise ValueError("d is not a float")
 
     samples = jk1.jk_samples * d
@@ -314,8 +317,9 @@ def multiply_corrs(corr1,corr2):
     return res
 
 def multiply_corr_d(corr1,d):
-    if d is not float:
+    if isinstance(d,float) is False:
         raise ValueError("d is not a float")
+
     res=[None]*len(corr1)
     for t in range(0,len(corr1)):
         res[t] = jack_mul_d(corr1[t],d)
