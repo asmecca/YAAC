@@ -85,7 +85,7 @@ def _get_jackknife_samples(jk):
     return np.asarray(jk.jk_samples)
 
     
-def read_corr(filename,tempo=None):
+def read_corr(filename,tempo=None, from_samples=False):
     # Reading Correlator
     corr=[]
     t=[]
