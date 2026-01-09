@@ -114,8 +114,12 @@ def read_corr(filename,tempo=None):
             C[i][t] = corr[i*time + t]
     t_C = C.T
     jk_corr = [None]*time
-    for t in range(0,time):
-        jk_corr[t] = Jackknife(t_C[t])
+    if from_samples is True:
+        for t in range(0,time):
+            jk_corr[t] = Jackknife.from_samples(t_C[t])
+    else:
+        for t in range(0,time):
+            jk_corr[t] = Jackknife(t_C[t])
     return jk_corr
 
 def plot_corr(corr,xlabel,ylabel,yscale=None,data_label=None,color='blue',marker='o',ncol=1,save=None):
