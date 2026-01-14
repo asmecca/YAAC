@@ -85,7 +85,7 @@ def _get_jackknife_samples(jk):
     return np.asarray(jk.jk_samples)
 
     
-def read_corr(filename,tempo=None, from_samples=False):
+def read_corr(filename,tempo=None, from_samples=False, col2=False):
     # Reading Correlator
     corr=[]
     t=[]
@@ -102,7 +102,10 @@ def read_corr(filename,tempo=None, from_samples=False):
     for line in f.readlines():
         x=line.split()
         if x[0] != str(cnfg):
-            corr += [float(x[0])]
+            if col2 == True:
+                corr += [float(x[1])]
+            else:
+                corr += [float(x[0])]
     f.close()
 
     if tempo is not None:
@@ -249,6 +252,7 @@ def jack_add(jk1,jk2):
     samples = jk1.jk_samples + jk2.jk_samples
     return Jackknife.from_samples(samples)
 
+
 def add_corrs(corr1,corr2):
     if len(corr1) != len(corr2):
         raise ValueError("Correlators must have the same length")
@@ -256,6 +260,33 @@ def add_corrs(corr1,corr2):
     res=[None]*len(corr1)
     for t in range(0,len(corr1)):
         res[t] = jack_add(corr1[t],corr2[t])
+    
+    return res
+
+def jack_add_d(jk1,d):
+    """
+    Add a Jackknife object and a double sample-by-sample.
+
+    Parameters
+    ----------
+    jk1 : Jackknife
+        Objects with identical N and compatible shapes    
+    d : float
+
+    Returns
+    -------
+    Jackknife
+        New jackknifed object representing the product
+    """
+
+    samples = jk1.jk_samples + d
+    return Jackknife.from_samples(samples)
+
+
+def add_corrs_d(corr1,d):
+    res=[None]*len(corr1)
+    for t in range(0,len(corr1)):
+        res[t] = jack_add(corr1[t],d)
     
     return res
 
@@ -386,6 +417,43 @@ def divide_corr_d(corr1,d):
         res[t] = jack_div_d(corr1[t],d)
     
     return res
+
+def jack_exp(jk1):
+    """
+    gets exp of Jackknife object sample-by-sample.
+
+    Parameters
+    ----------
+    jk1 : Jackknife
+        Objects with identical N and compatible shapes
+
+    Returns
+    -------
+    Jackknife
+        New jackknifed object representing the product
+    """
+
+    samples = np.exp(jk1.jk_samples)
+    return Jackknife.from_samples(samples)
+
+def jack_pow(jk1,d):
+    """
+    gets power of Jackknife object sample-by-sample.
+
+    Parameters
+    ----------
+    jk1 : Jackknife
+        Objects with identical N and compatible shapes
+
+    Returns
+    -------
+    Jackknife
+        New jackknifed object representing the product
+    """
+
+    samples = np.power(jk1.jk_samples,d)
+    return Jackknife.from_samples(samples)
+
 
 
 def find_root_newton(d, root_function, guess, tol=1e-15, maxiter=100):
