@@ -197,5 +197,5 @@ def read_rho_hlt(path,sig):
 
     yaac_rho = [None]*nomega
     for i in range(0,nomega):
-        yaac_rho[i] = Jackknife.from_samples(rho_raw_sigma[i][:len(rho_raw_sigma[i])-4])
+        yaac_rho[i] = Jackknife.from_samples(rho_samples_sigma[i][:len(rho_samples_sigma[i])-4])
     return yaac_rho
