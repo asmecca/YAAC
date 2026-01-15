@@ -199,3 +199,175 @@ def read_rho_hlt(path,sig):
     for i in range(0,nomega):
         yaac_rho[i] = Jackknife.from_samples(rho_samples_sigma[i][:len(rho_samples_sigma[i])-4])
     return omega, yaac_rho
+
+def plot_spec(xarr,
+    corr, xlabel, ylabel,
+    yscale=None, data_label=None,
+    color='blue', marker='o',
+    ncol=1, save=None,
+    # --- new fit-related args ---
+    fit_func=None, A_jk=None, E_jk=None, sig=None,
+    fit_label="fit", fit_color=None,
+    band_alpha=0.25, t_dense=400
+):
+    # ---- plot data (unchanged) ----
+    for t in range(len(corr)):
+        if corr[t] is not None:
+            if t == 0 and data_label is not None:
+                plt.errorbar(
+                    x=xarr[t], y=corr[t].mean, yerr=corr[t].std,
+                    color=color, fmt=marker, label=data_label
+                )
+            else:
+                plt.errorbar(
+                    x=xarr[t], y=corr[t].mean, yerr=corr[t].std,
+                    color=color, fmt=marker
+                )
+
+    # ---- plot fit + jackknife band (new) ----
+    if fit_func is not None:
+        if (A_jk is None) or (E_jk is None) or (sig is None):
+            raise ValueError("Pass fit_func, A_jk, E_jk and sig to plot the fit.")
+
+        if fit_color is None:
+            fit_color = color
+
+        # x-range from available data
+        t_data = [xarr[t] for t in range(len(xarr)) if xarr[t] is not None]
+        tmin, tmax = min(t_data), max(t_data)
+        xgrid = np.linspace(tmin, tmax, t_dense)
+
+        # mean curve
+        sig=sig
+        y_mean = fit_func(xgrid, A_jk.mean, E_jk.mean)
+
+        # jackknife samples of parameters
+        A_s = _get_jackknife_samples(A_jk)
+        E_s = _get_jackknife_samples(E_jk)
+
+        # safety: enforce same number of samples
+        n = min(len(A_s), len(E_s))
+        A_s, E_s = A_s[:n], E_s[:n]
+
+        # propagate through fit function
+        y_samples = np.empty((n, len(xgrid)))
+        for k in range(n):
+            y_samples[k] = fit_func(xgrid, A_s[k], E_s[k])
+
+        # 1σ band from jackknife samples
+        y_std = y_samples.std(axis=0, ddof=1)
+
+        plt.plot(xgrid, y_mean, color=fit_color, label=fit_label,linestyle='-')
+        plt.fill_between(
+            xgrid,
+            y_mean - y_std,
+            y_mean + y_std,
+            color=fit_color,
+            alpha=band_alpha,
+            linewidth=0
+        )
+
+    # ---- legend / labels / scale ----
+    if (data_label is not None) or (fit_func is not None):
+        plt.legend(loc='best', ncol=ncol)
+
+    plt.ylabel(ylabel)
+    plt.xlabel(xlabel)
+    if yscale is not None:
+        plt.yscale(yscale)
+
+    if save is not None:
+        fig = plt.gcf()
+        fig.savefig(save, bbox_inches="tight")
+
+    plt.show()
+
+def plot_fit_func(
+    xarr,
+    corr, xlabel, ylabel,
+    yscale=None, data_label=None,
+    color='blue', marker='o',
+    ncol=1, save=None,
+    # --- fit-related args ---
+    fit_func=None,
+    params_jk=None,           # list/tuple of Jackknife params, e.g. [A_jk, E_jk, ...]
+    fit_args=(),              # extra positional args passed to fit_func after params
+    fit_kwargs=None,          # extra keyword args passed to fit_func
+    fit_label="fit", fit_color=None,
+    band_alpha=0.25, t_dense=400
+):
+    if fit_kwargs is None:
+        fit_kwargs = {}
+
+    xarr = np.asarray(xarr)
+
+    # ---- plot data ----
+    for t in range(len(corr)):
+        if corr[t] is None:
+            continue
+        if t == 0 and data_label is not None:
+            plt.errorbar(
+                x=xarr[t], y=corr[t].mean, yerr=corr[t].std,
+                color=color, fmt=marker, label=data_label
+            )
+        else:
+            plt.errorbar(
+                x=xarr[t], y=corr[t].mean, yerr=corr[t].std,
+                color=color, fmt=marker
+            )
+
+    # ---- plot fit + jackknife band ----
+    if fit_func is not None:
+        if params_jk is None or len(params_jk) == 0:
+            raise ValueError("Pass params_jk as a non-empty list/tuple of Jackknife parameter objects.")
+
+        if fit_color is None:
+            fit_color = color
+
+        # x-range from available data points (where corr exists)
+        x_data = [xarr[t] for t in range(len(corr)) if corr[t] is not None]
+        xmin, xmax = float(np.min(x_data)), float(np.max(x_data))
+        xgrid = np.linspace(xmin, xmax, t_dense)
+
+        # mean curve
+        params_mean = [p.mean for p in params_jk]
+        y_mean = fit_func(xgrid, *params_mean, *fit_args, **fit_kwargs)
+
+        # jackknife samples of parameters: shape (n_params, n_samples)
+        samples_list = [np.asarray(_get_jackknife_samples(p)) for p in params_jk]
+        n = min(len(s) for s in samples_list)
+        samples_list = [s[:n] for s in samples_list]  # align lengths
+
+        # propagate through fit function for each jackknife sample
+        y_samples = np.empty((n, len(xgrid)), dtype=float)
+        for k in range(n):
+            params_k = [s[k] for s in samples_list]
+            y_samples[k] = fit_func(xgrid, *params_k, *fit_args, **fit_kwargs)
+
+        # 1σ band from propagated jackknife samples
+        y_std = y_samples.std(axis=0, ddof=1)
+
+        plt.plot(xgrid, y_mean, color=fit_color, label=fit_label, linestyle='-')
+        plt.fill_between(
+            xgrid,
+            y_mean - y_std,
+            y_mean + y_std,
+            color=fit_color,
+            alpha=band_alpha,
+            linewidth=0
+        )
+
+    # ---- legend / labels / scale ----
+    if (data_label is not None) or (fit_func is not None):
+        plt.legend(loc='best', ncol=ncol)
+
+    plt.ylabel(ylabel)
+    plt.xlabel(xlabel)
+    if yscale is not None:
+        plt.yscale(yscale)
+
+    if save is not None:
+        fig = plt.gcf()
+        fig.savefig(save, bbox_inches="tight")
+
+    plt.show()    
