@@ -768,9 +768,9 @@ def _best_permutation_by_overlap(v_ref, v_t):
             best_score, best_p = score, p
     return list(best_p)
 
-def gevp_yaac(
+def gevp(
     G, t0, ts=None, sort="Eigenvalue",
-    vector_obs=False, symmetrise=True
+    vector_obs=True, symmetrise=True
 ):
     """
     Solve the GEVP for correlator matrices stored as:
@@ -922,3 +922,51 @@ def gevp_yaac(
         pack_time_into_outputs(t, lam_all[t], vec_all[t])
         
     return lambdas, vecs
+
+
+def project_state(G, vecs, state=0):
+    """
+    Full projection: C_state(t) = v^T G(t) v
+
+    Parameters
+    ----------
+    G : list length T
+        G[t] is NxN matrix of Jackknife objects
+    vecs : output of gevp_yaac
+        vecs[state][t] is [Jackknife components] if vector_obs=True
+    state : int
+        which state to project (0 = ground)
+
+    Returns
+    -------
+    Cproj : list length T
+        Cproj[t] is a Jackknife (or None)
+    """
+    T = len(G)
+    N = np.asarray(G[0], dtype=object).shape[0]
+
+    Cproj = [None] * T
+
+    for t in range(T):
+        v = vecs[state][t]
+        if v is None or G[t] is None:
+            continue
+
+        # v is a list of Jackknife components
+        v_s = np.stack([vk.jk_samples for vk in v], axis=1)   # (ns, N)
+
+        # matrix samples
+        Gt = np.asarray(G[t], dtype=object)
+        ns = v_s.shape[0]
+        G_s = np.zeros((ns, N, N), dtype=float)
+        for i in range(N):
+            for j in range(N):
+                G_s[:, i, j] = Gt[i, j].jk_samples
+
+        # compute C_s[k] = v_s[k]^T G_s[k] v_s[k]
+        C_s = np.einsum("ki,kij,kj->k", v_s, G_s, v_s)
+
+        # wrap into Jackknife
+        Cproj[t] = type(Gt[0, 0]).from_samples(C_s)
+
+    return Cproj
