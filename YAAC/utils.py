@@ -720,7 +720,205 @@ def format_with_error(value, error, nsig=2):
     return fmt.format(val_rounded, err_int)
 
 
-#######
-# TODO:
-# - Fit correlated and uncorrelated
-#######
+def _symmetrise(M):
+    return 0.5 * (M + np.swapaxes(M, -1, -2))
+
+def _gevp_one_cholesky(Gt, G0):
+    """
+    Solve Gt v = lam G0 v for numeric matrices (N,N).
+    Returns:
+      w : (N,) eigenvalues in descending order
+      v : (N,N) eigenvectors as columns, normalised so v^T G0 v = 1
+    """
+    # Cholesky of G0
+    L = np.linalg.cholesky(G0)
+    Linv = np.linalg.inv(L)
+
+    # Convert to standard EVP: C u = lam u  with C = Linv Gt Linv^T
+    C = Linv @ Gt @ Linv.T
+    C = 0.5 * (C + C.T)  # clean numerical asymmetry
+
+    w, u = np.linalg.eigh(C)  # ascending
+    idx = np.argsort(w)[::-1]  # descending
+    w = w[idx]
+    u = u[:, idx]
+
+    # Back-transform eigenvectors
+    v = Linv.T @ u
+
+    # Normalise with respect to G0: v^T G0 v = 1
+    for k in range(v.shape[1]):
+        nrm2 = v[:, k].T @ G0 @ v[:, k]
+        nrm = np.sqrt(nrm2) if nrm2 > 0 else 1.0
+        v[:, k] /= nrm
+
+    return w, v
+
+def _best_permutation_by_overlap(v_ref, v_t):
+    """
+    Find permutation p that maximises sum_i |<v_ref_i | v_t_{p(i)}>| in Euclidean inner product.
+    For N=2 this is trivial; for small N brute force is fine.
+    """
+    O = np.abs(v_ref.T @ v_t)  # (N,N)
+    N = O.shape[0]
+    best_p, best_score = None, -np.inf
+    for p in itertools.permutations(range(N)):
+        score = sum(O[i, p[i]] for i in range(N))
+        if score > best_score:
+            best_score, best_p = score, p
+    return list(best_p)
+
+def gevp_yaac(
+    G, t0, ts=None, sort="Eigenvalue",
+    vector_obs=False, symmetrise=True
+):
+    """
+    Solve the GEVP for correlator matrices stored as:
+      G[t][i][j] = Jackknife
+
+    Parameters
+    ----------
+    G : list length T
+        G[t] is NxN matrix (list-of-lists or np.array) of Jackknife
+    t0 : int
+        reference time for RHS: G(t) v = lam G(t0) v
+    ts : int or None
+        needed if sort is None or sort == "Eigenvector"
+    sort : "Eigenvalue" | "Eigenvector" | None
+    vector_obs : bool
+        if True, return eigenvector components as Jackknife (uncertainties propagated)
+        if False, return eigenvectors as float arrays (means only)
+    symmetrise : bool
+        if True, symmetrise G(t) sample-by-sample: (M + M^T)/2
+    Returns
+    -------
+    lambdas : list of length N
+        lambdas[s][t] is a Jackknife (or None)
+    vecs : list of length N
+        vecs[s][t] is either:
+          - list of N Jackknife components (if vector_obs=True), or
+          - numpy array shape (N,) of floats (if vector_obs=False),
+        or None when unsolved.
+    """
+
+    T = len(G)
+    G0_mat = np.asarray(G[t0], dtype=object)
+    N = G0_mat.shape[0]
+
+    JackknifeClass = type(G0_mat[0, 0])
+
+    # --- helpers to build sample matrices at a given t ---
+    def mat_samples_at_t(t):
+        Mt = np.asarray(G[t], dtype=object)
+        if Mt.shape != (N, N):
+            raise ValueError(f"G[{t}] has shape {Mt.shape}, expected {(N, N)}")
+
+        # number of jackknife samples: must match across i,j and also match t0
+        ns = _get_jackknife_samples(Mt[0, 0]).shape[0]
+        M = np.zeros((ns, N, N), dtype=float)
+
+        for i in range(N):
+            for j in range(N):
+                s = _get_jackknife_samples(Mt[i, j])
+                if s.shape[0] != ns:
+                    raise ValueError(
+                        f"Mismatch JK samples at t={t}, element ({i},{j}): {s.shape[0]} vs {ns}"
+                    )
+                M[:, i, j] = s
+
+        if symmetrise:
+            M = _symmetrise(M)
+        return M, ns
+
+    # Build G0 samples and remember ns0
+    G0_s, ns0 = mat_samples_at_t(t0)
+
+    def solve_time(t):
+        Gt_s, ns = mat_samples_at_t(t)
+        if ns != ns0:
+            raise ValueError(
+                f"Different number of JK samples between t0={t0} (ns={ns0}) and t={t} (ns={ns}). "
+                "GEVP with JK propagation requires consistent resampling."
+            )
+
+        lam_s = np.zeros((ns0, N), dtype=float)
+        v_s   = np.zeros((ns0, N, N), dtype=float)  # (sample, component, state)
+
+        for k in range(ns0):
+            w, v = _gevp_one_cholesky(Gt_s[k], G0_s[k])
+            lam_s[k, :] = w
+            v_s[k, :, :] = v
+
+        return lam_s, v_s
+
+    # --- output containers: per state, list over times ---
+    lambdas = [[None] * T for _ in range(N)]
+    vecs    = [[None] * T for _ in range(N)]
+
+    def pack_time_into_outputs(t, lam_s, v_s):
+        for s in range(N):
+            lambdas[s][t] = JackknifeClass.from_samples(lam_s[:, s])
+            if vector_obs:
+                vecs[s][t] = [JackknifeClass.from_samples(v_s[:, c, s]) for c in range(N)]
+            else:
+                vecs[s][t] = np.mean(v_s[:, :, s], axis=0)
+
+
+    # --- sort=None: solve only at ts ---
+    if sort is None:
+        if ts is None:
+            raise ValueError("ts is required if sort=None.")
+        lam_s, v_s = solve_time(ts)
+        pack_time_into_outputs(ts, lam_s, v_s)
+        return lambdas, vecs
+
+    # --- solve all t > t0 with eigenvalue sorting (default) ---
+    lam_all = [None] * T
+    vec_all = [None] * T
+
+    for t in range(t0 + 1, T):
+        try:
+            lam_s, v_s = solve_time(t)
+            lam_all[t] = lam_s
+            vec_all[t] = v_s
+        except Exception:
+            lam_all[t] = None
+            vec_all[t] = None
+
+    # --- optional eigenvector tracking against reference ts ---
+    if sort == "Eigenvector":
+        if ts is None:
+            raise ValueError("ts is required for sort='Eigenvector'.")
+        if not (t0 < ts < T):
+            raise ValueError("ts must satisfy t0 < ts < T.")
+
+        lam_ref_s, v_ref_s = solve_time(ts)
+
+        for t in range(t0 + 1, T):
+            if vec_all[t] is None:
+                continue
+            lam_t_s = lam_all[t]
+            v_t_s   = vec_all[t]
+
+            lam_new = np.zeros_like(lam_t_s)
+            v_new   = np.zeros_like(v_t_s)
+
+            for k in range(ns0):
+                p = _best_permutation_by_overlap(v_ref_s[k], v_t_s[k])
+                for s in range(N):
+                    lam_new[k, s] = lam_t_s[k, p[s]]
+                    v_new[k, :, s] = v_t_s[k, :, p[s]]
+
+            lam_all[t] = lam_new
+            vec_all[t] = v_new
+
+    elif sort != "Eigenvalue":
+        raise ValueError("Unknown sort. Use 'Eigenvalue', 'Eigenvector', or None.")
+    
+    # --- pack results into Jackknife outputs ---
+    for t in range(t0 + 1, T):
+        if lam_all[t] is None:
+            continue
+        pack_time_into_outputs(t, lam_all[t], vec_all[t])
+        
+    return lambdas, vecs
