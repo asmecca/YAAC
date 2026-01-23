@@ -457,7 +457,7 @@ def jack_pow(jk1,d):
 
 
 
-def find_root_newton(d, root_function, guess, tol=1e-15, maxiter=100):
+def find_root_newton(d, root_function, guess, tol=1e-12, maxiter=100):
     """
     Simple Newton–secant root finder for scalar equations.
 
