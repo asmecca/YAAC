@@ -165,10 +165,11 @@ def plot_multi_corr(list_corr,xlabel,ylabel,ylim=None,yscale=None,list_label=Non
         else:
             data_label = None
         for t in range(0,len(corr)):
-            if t==0 and data_label is not None:
-                plt.errorbar(x=t+i*offset,y=corr[t].mean,yerr=corr[t].std,color=color,fmt=marker,label=data_label)
-            else:
-                plt.errorbar(x=t+i*offset,y=corr[t].mean,yerr=corr[t].std,color=color,fmt=marker)
+            if corr[t] is not None:
+                if t==0 and data_label is not None:
+                    plt.errorbar(x=t+i*offset,y=corr[t].mean,yerr=corr[t].std,color=color,fmt=marker,label=data_label)
+                else:
+                    plt.errorbar(x=t+i*offset,y=corr[t].mean,yerr=corr[t].std,color=color,fmt=marker)
         if data_label is not None:
             plt.legend(loc='best',ncol=ncol)
     if save is not None:
