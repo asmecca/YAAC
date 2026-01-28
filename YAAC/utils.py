@@ -125,7 +125,7 @@ def read_corr(filename,tempo=None, from_samples=False, col2=False):
             jk_corr[t] = Jackknife(t_C[t])
     return jk_corr
 
-def plot_corr(corr,xlabel,ylabel,yscale=None,data_label=None,color='blue',marker='o',ncol=1,save=None):
+def plot_corr(corr,xlabel,ylabel,ylim=None,yscale=None,data_label=None,color='blue',marker='o',ncol=1,save=None):
     for t in range(0,len(corr)):
         if corr[t] is not None:
             if t==0 and data_label is not None:
@@ -136,6 +136,9 @@ def plot_corr(corr,xlabel,ylabel,yscale=None,data_label=None,color='blue',marker
         plt.legend(loc='best',ncol=ncol)
     plt.ylabel(ylabel)
     plt.xlabel(xlabel)
+    if ylim is not None:
+        y_i, y_f = ylim
+        plt.ylim(y_i,y_f)    
     if yscale is not None:
         plt.yscale(yscale)
     if save is not None:
@@ -165,7 +168,7 @@ def plot_multi_corr(list_corr,xlabel,ylabel,ylim=None,yscale=None,list_label=Non
         else:
             data_label = None
         for t in range(0,len(corr)):
-            if corr[t] is not None:
+            if corr[t] is not None and corr[t] is not np.nan:
                 if t==0 and data_label is not None:
                     plt.errorbar(x=t+i*offset,y=corr[t].mean,yerr=corr[t].std,color=color,fmt=marker,label=data_label)
                 else:
