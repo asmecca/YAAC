@@ -143,9 +143,9 @@ def plot_corr(corr,xlabel,ylabel,ylim=None,yscale=None,data_label=None,color='bl
     plt.ylabel(ylabel)
     plt.xlabel(xlabel)
     if hline is not None:
-        plt.axhline(y=hline,color='black',ls='--')
+        plt.axhline(y=hline,color='black',ls='--',label=hlabel)
     if vline is not None:
-        plt.axvline(x=vline,color='black',ls='--')
+        plt.axvline(x=vline,color='black',ls='--',label=vlabel)
     if ylim is not None:
         y_i, y_f = ylim
         plt.ylim(y_i,y_f)    
@@ -156,13 +156,13 @@ def plot_corr(corr,xlabel,ylabel,ylim=None,yscale=None,data_label=None,color='bl
         fig.savefig(save)
     plt.show()
 
-def plot_multi_corr(list_corr,xlabel,ylabel,ylim=None,yscale=None,list_label=None,ncol=1,save=None,x_offset=None,hline=None,vline=None):
+def plot_multi_corr(list_corr,xlabel,ylabel,ylim=None,yscale=None,list_label=None,ncol=1,save=None,x_offset=None,hline=None,hlabel=None,vline=None,vlabel=None):
     plt.ylabel(ylabel)
     plt.xlabel(xlabel)
     if hline is not None:
-        plt.axhline(y=hline,color='black',ls='--')
+        plt.axhline(y=hline,color='black',ls='--',label=hlabel)
     if vline is not None:
-        plt.axvline(x=vline,color='black',ls='--')    
+        plt.axvline(x=vline,color='black',ls='--',label=vlabel)    
     if ylim is not None:
         y_i, y_f = ylim
         plt.ylim(y_i,y_f)
