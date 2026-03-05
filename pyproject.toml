@@ -7,6 +7,9 @@ name = "YAAC"
 version = "0.1.0"
 description = "YAAC (Yet Another Analysis Code)"
 requires-python = ">=3.7"
+authors = [
+{ name="Antonio Smecca", email="antonio.smecca@roma3.infn.it" }
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
