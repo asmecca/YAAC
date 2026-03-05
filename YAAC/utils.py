@@ -479,6 +479,25 @@ def jack_pow(jk1,d):
     return Jackknife.from_samples(samples)
 
 
+def corr_pow(corr,d):
+    """
+    gets power of correlator object sample-by-sample.
+
+    Parameters
+    ----------
+    corr : Jackknife
+        Objects with identical N and compatible shapes
+
+    Returns
+    -------
+    corr
+        New jackknifed object representing the product
+    """
+    res=[None]*len(corr)
+    for t in range(0,len(corr)):
+        res[t] = jack_pow(corr[t],d)
+
+    return res
 
 def find_root_newton(d, root_function, guess, tol=1e-12, maxiter=100):
     """
