@@ -130,9 +130,9 @@ def plot_corr(corr,xlabel,ylabel,ylim=None,yscale=None,data_label=None,color='bl
         if corr[t] is not None:
             if yscale == "log":
                 if t==0 and data_label is not None:
-                    plt.errorbar(x=t,y=abs(corr[t].mean),yerr=corr[t].std,color=color,fmt=marker,label=data_label)
+                    plt.errorbar(x=t,y=corr[t].mean,yerr=corr[t].std,color=color,fmt=marker,label=data_label)
                 else:
-                    plt.errorbar(x=t,y=abs(corr[t].mean),yerr=corr[t].std,color=color,fmt=marker)
+                    plt.errorbar(x=t,y=corr[t].mean,yerr=corr[t].std,color=color,fmt=marker)
             else:
                 if t==0 and data_label is not None:
                     plt.errorbar(x=t,y=corr[t].mean,yerr=corr[t].std,color=color,fmt=marker,label=data_label)
@@ -185,9 +185,9 @@ def plot_multi_corr(list_corr,xlabel,ylabel,ylim=None,yscale=None,list_label=Non
             if corr[t] is not None and corr[t] is not np.nan:
                 if yscale == "log":
                     if t==0 and data_label is not None:
-                        plt.errorbar(x=t+i*offset,y=abs(corr[t].mean),yerr=corr[t].std,color=color,fmt=marker,label=data_label)
+                        plt.errorbar(x=t+i*offset,y=corr[t].mean,yerr=corr[t].std,color=color,fmt=marker,label=data_label)
                     else:
-                        plt.errorbar(x=t+i*offset,y=abs(corr[t].mean),yerr=corr[t].std,color=color,fmt=marker)
+                        plt.errorbar(x=t+i*offset,y=corr[t].mean,yerr=corr[t].std,color=color,fmt=marker)
                 else:
                     if t==0 and data_label is not None:
                         plt.errorbar(x=t+i*offset,y=corr[t].mean,yerr=corr[t].std,color=color,fmt=marker,label=data_label)
