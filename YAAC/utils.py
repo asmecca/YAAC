@@ -156,13 +156,17 @@ def plot_corr(corr,xlabel,ylabel,ylim=None,yscale=None,data_label=None,color='bl
         fig.savefig(save)
     plt.show()
 
-def plot_multi_corr(list_corr,xlabel,ylabel,ylim=None,yscale=None,list_label=None,ncol=1,save=None,x_offset=None,hline=None,hlabel=None,vline=None,vlabel=None):
+def plot_multi_corr(list_corr,xlabel,ylabel,ylim=None,yscale=None,list_label=None,ncol=1,save=None,x_offset=None,hline=None,herr=None,hlabel=None,vline=None,verr=None,vlabel=None):
     plt.ylabel(ylabel)
     plt.xlabel(xlabel)
     if hline is not None:
         plt.axhline(y=hline,color='black',ls='--',label=hlabel)
+    if herr is not None:
+        plt.axhspan(hline-herr,hline+herr,color='gray',alpha=0.4)    
     if vline is not None:
-        plt.axvline(x=vline,color='black',ls='--',label=vlabel)    
+        plt.axvline(x=vline,color='black',ls='--',label=vlabel)
+    if verr is not None:
+        plt.axvspan(vline-verr,vline+verr,color='gray',alpha=0.4)    
     if ylim is not None:
         y_i, y_f = ylim
         plt.ylim(y_i,y_f)
@@ -499,7 +503,7 @@ def corr_pow(corr,d):
 
     return res
 
-def find_root_newton(d, root_function, guess, tol=1e-12, maxiter=100):
+def find_root_newton(d, root_function, guess, tol=1e-12, maxiter=100): #1e-12
     """
     Simple Newton–secant root finder for scalar equations.
 
@@ -622,6 +626,16 @@ def effective_mass(jack_C, method="cosh"):
 
     return jack_meff
 
+def fit_effective_mass(jack_C,fit_range=None):
+    def cnst_func(x,a):
+        return a
+    
+    x = int(len(jack_C))
+    cov = jackknife_covariance(jack_C)
+    params,chi2 = jackknife_fit(jack_C, x, cnst_func, fit_range=fit_range, cov=cov, correlated=True)
+    E = Jackknife.from_samples(params[:,0])
+    return E, chi2
+    
 
 def jackknife_fit(corrs, x, fit_func, p0, fit_range=None, correlated=False, cov=None, absolute_sigma=True):
     """
