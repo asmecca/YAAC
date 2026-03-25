@@ -202,7 +202,7 @@ def plot_multi_corr(list_corr,xlabel,ylabel,ylim=None,yscale=None,list_label=Non
     if save is not None:
         fig=plt.gcf()
         fig.savefig(save)
-    plt.show()
+
     
 
 def jackknife_covariance(jk):
