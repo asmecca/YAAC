@@ -313,8 +313,8 @@ def jack_add_d(jk1,d):
 
 def add_corrs_d(corr1,d):
     res=[None]*len(corr1)
-    for t in range(0,len(corr1)):
-        res[t] = jack_add(corr1[t],d)
+    for t in range(len(corr1)):
+        res[t] = jack_add_d(corr1[t],d)
     
     return res
 
