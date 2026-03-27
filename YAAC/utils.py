@@ -10,7 +10,7 @@ class Jackknife:
     Modern jackknife estimator for linear and non-linear observables.
     """
 
-    def __init__(self, data, estimator= lambda x:np.mean(x)):
+    def __init__(self, data, estimator= lambda x:np.mean(x),binsize=None, nbins=None):
         """
         Parameters
         ----------
@@ -21,8 +21,11 @@ class Jackknife:
         """
         self.data = np.asarray(data)
         self.estimator = estimator
-
+        if binsize is not None or nbins is not None:
+            self.data = bin_data(self.data, binsize=binsize, nbins=nbins, axis=0)
         self.N = self.data.shape[0]
+        self.binsize = binsize
+        self.nbins_requested = nbins
 
         self._compute()
 
@@ -84,8 +87,47 @@ class Jackknife:
 def _get_jackknife_samples(jk):
     return np.asarray(jk.jk_samples)
 
-    
-def read_corr(filename,tempo=None, from_samples=False, col2=False):
+def bin_data(data, binsize=None, nbins=None, axis=0, drop_remainder=True):
+    """
+    Bin/block raw data along one axis by averaging inside each bin.
+    """
+    x = np.asarray(data)
+    x = np.moveaxis(x, axis, 0)
+
+    N = x.shape[0]
+
+    if (binsize is None) == (nbins is None):
+        raise ValueError("Give exactly one of binsize or nbins")
+
+    if binsize is not None:
+        if not isinstance(binsize, int) or binsize <= 0:
+            raise ValueError("binsize must be a positive integer")
+        nbins_eff = N // binsize
+        if nbins_eff < 1:
+            raise ValueError("Not enough data for one full bin")
+        Nused = nbins_eff * binsize
+    else:
+        if not isinstance(nbins, int) or nbins <= 0:
+            raise ValueError("nbins must be a positive integer")
+        if nbins > N:
+            raise ValueError("nbins cannot be larger than the data length")
+        binsize = N // nbins
+        if binsize < 1:
+            raise ValueError("Computed binsize is smaller than 1")
+        nbins_eff = nbins
+        Nused = nbins_eff * binsize
+
+    if Nused != N and not drop_remainder:
+        raise ValueError("Data size is not divisible into full bins")
+
+    x = x[:Nused]
+    x = x.reshape((nbins_eff, binsize) + x.shape[1:])
+    x = np.mean(x, axis=1)
+
+    return np.moveaxis(x, 0, axis)
+
+def read_corr(filename, tempo=None, from_samples=False, col2=False,
+              binsize=None, nbins=None):
     # Reading Correlator
     corr=[]
     t=[]
@@ -115,6 +157,10 @@ def read_corr(filename,tempo=None, from_samples=False, col2=False):
     for i in range(0,cnfg):
         for t in range(0,time):
             C[i][t] = corr[i*time + t]
+
+    if (binsize is not None) or (nbins is not None):
+        C = bin_data(C, binsize=binsize, nbins=nbins, axis=0)
+
     t_C = C.T
     jk_corr = [None]*time
     if from_samples is True:
