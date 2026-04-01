@@ -1,97 +1,19 @@
 #!/usr/bin/env python3
+import os
+import struct
+
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.optimize import curve_fit
-import struct
-import sys
-import os
 
-GEVFM=0.1973269804
-NFUNC = 6
-nsteps=1
+from .utils import Jackknife, _get_jackknife_samples
 
-dt_jack=np.dtype([('f','f8'),('n','i'),('m','f8'),('um','f8'),('s','f8'),('b','f8'),('boot','i')])
+# Physical and numerical constants
+GEVFM = 0.1973269804   # GeV·fm conversion factor
+NFUNC = 6              # number of basis functions
+nsteps = 1
 
-plt.style.use('./myplot.mplstyle')
-
-class Jackknife:
-    """
-    Modern jackknife estimator for linear and non-linear observables.
-    """
-
-    def __init__(self, data, estimator= lambda x:np.mean(x)):
-        """
-        Parameters
-        ----------
-        data : array-like, shape (Ncfg, ...)
-            Raw Monte Carlo data
-        estimator : callable
-            Function mapping data -> observable
-        """
-        self.data = np.asarray(data)
-        self.estimator = estimator
-
-        self.N = self.data.shape[0]
-
-        self._compute()
-
-    # --------------------------------------------------
-    def _compute(self):
-        # Full-sample estimator
-        self.theta = self.estimator(self.data)
-
-        # Leave-one-out jackknife samples
-        jk_data = self._leave_one_out(self.data)
-        self.jk_samples = np.array([self.estimator(d) for d in jk_data])
-
-        # Jackknife mean
-        self.mean = np.mean(self.jk_samples, axis=0)
-
-        # Jackknife variance (unbiased)
-        diff = self.jk_samples - self.mean
-        self.var = (self.N - 1) / self.N * np.sum(diff**2, axis=0)
-        self.std = np.sqrt(self.var)
-
-        # Bias-corrected estimator
-        self.unbiased = self.N * self.theta - (self.N - 1) * self.mean
-
-    # --------------------------------------------------
-    @staticmethod
-    def _leave_one_out(data):
-        """
-        Efficient leave-one-out views.
-        """
-        N = data.shape[0]
-        return [np.delete(data, i, axis=0) for i in range(N)]
-
-    @classmethod
-    def from_samples(cls, jk_samples):
-        """
-        Construct a Jackknife object directly from jackknife samples.
-        """
-        obj = cls.__new__(cls)
-
-        obj.jk_samples = np.asarray(jk_samples)
-        obj.N = obj.jk_samples.shape[0]
-
-        obj.mean = np.mean(obj.jk_samples, axis=0)
-
-        diff = obj.jk_samples - obj.mean
-        obj.var = (obj.N - 1) / obj.N * np.sum(diff**2, axis=0)
-        obj.std = np.sqrt(obj.var)
-
-        # For derived objects, theta is the mean estimator
-        obj.theta = obj.mean
-        obj.unbiased = obj.mean
-
-        # These are undefined / unused here
-        obj.data = None
-        obj.estimator = None
-
-        return obj
-
-def _get_jackknife_samples(jk):
-    return np.asarray(jk.jk_samples)
+dt_jack = np.dtype([('f', 'f8'), ('n', 'i'), ('m', 'f8'),
+                    ('um', 'f8'), ('s', 'f8'), ('b', 'f8'), ('boot', 'i')])
 
 
 def get_rho(in_file):

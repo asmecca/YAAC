@@ -11,7 +11,7 @@ font.size: 12
 
 text.usetex: True
 # Use a list for the LaTeX preamble; backslashes must be escaped.
-text.latex.preamble: ['\\usepackage{amsmath}']
+text.latex.preamble: \usepackage{amsmath}
 
 # Tick directions and placement
 xtick.direction: in
