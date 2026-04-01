@@ -1,3 +1,4 @@
 #!/bin/bash
 
-pip3 install -e /Users/antoniosmecca/Documents/Physics/pdoc_RomaTre/YAAC
+# Install YAAC in editable mode from the repo root
+pip install -e .

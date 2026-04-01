@@ -6,9 +6,16 @@ build-backend = "setuptools.build_meta"
 name = "YAAC"
 version = "0.1.0"
 description = "YAAC (Yet Another Analysis Code)"
+readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.7"
 authors = [
-{ name="Antonio Smecca", email="antonio.smecca@roma3.infn.it" }
+    { name = "Antonio Smecca", email = "antonio.smecca@roma3.infn.it" }
+]
+dependencies = [
+    "numpy>=1.21",
+    "scipy>=1.7",
+    "matplotlib>=3.4",
 ]
 
 [tool.setuptools.packages.find]
