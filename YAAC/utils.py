@@ -852,7 +852,12 @@ def jackknife_fit(corrs, x, fit_func, p0, fit_range=None, correlated=False, cov=
 def format_with_error(value, error, nsig=2):
     """
     Format a value with uncertainty as x.xxx(yy).
-    
+ 
+    The parenthetical notation x.xxx(yy) means the last displayed digits
+    of the value are uncertain by yy. Works correctly for both sub-unit
+    errors (e.g. 1.234(25)) and multi-digit errors (e.g. 320.5(25),
+    1230(120)).
+ 
     Parameters
     ----------
     value : float
@@ -862,26 +867,36 @@ def format_with_error(value, error, nsig=2):
     """
     if error <= 0:
         return f"{value}"
-
+ 
     # Order of magnitude of the error
     exp = int(np.floor(np.log10(error)))
-    
-    # Rounded error with nsig significant digits
-    err_rounded = round(error, -exp + (nsig - 1))
-    
-    # Number of decimal places to show
-    decimals = max(0, -(exp - (nsig - 1)))
-    
-    # Rounded value
-    val_rounded = round(value, decimals)
-
-    # Error in integer form
-    err_int = int(round(err_rounded * 10**decimals))
-
-    fmt = f"{{:.{decimals}f}}({{}})"
-    return fmt.format(val_rounded, err_int)
-
-
+ 
+    if exp < 0:
+        # Error is smaller than 1: use decimal notation
+        decimals = -(exp - (nsig - 1))
+        err_rounded = round(error, -exp + (nsig - 1))
+        val_rounded = round(value, decimals)
+        err_int = int(round(err_rounded * 10**decimals))
+        fmt = f"{{:.{decimals}f}}({{}})"
+        return fmt.format(val_rounded, err_int)
+    else:
+        # Error is >= 1: round both to the same significant place
+        round_to = exp - (nsig - 1)
+        if round_to >= 0:
+            # Error rounds to tens, hundreds, etc.
+            scale = 10**round_to
+            err_int = int(round(error / scale)) * scale
+            val_int = int(round(value / scale)) * scale
+            return f"{val_int}({err_int})"
+        else:
+            # Error >= 1 but rounds to a decimal place (e.g. 2.5 with nsig=2)
+            decimals = -round_to
+            err_rounded = round(error, decimals)
+            val_rounded = round(value, decimals)
+            err_int = int(round(err_rounded * 10**decimals))
+            fmt = f"{{:.{decimals}f}}({{}})"
+            return fmt.format(val_rounded, err_int)
+        
 def _symmetrise(M):
     return 0.5 * (M + np.swapaxes(M, -1, -2))
 
