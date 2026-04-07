@@ -487,22 +487,24 @@ def jack_div(jk1, jk2, check_zero=True):
     ----------
     jk1, jk2 : Jackknife
         Objects with identical N and compatible shapes
+    check_zero : bool
+        If True (default), samples with a zero denominator are set to NaN
+        instead of raising an exception.
 
     Returns
     -------
     Jackknife
-        New jackknifed object representing the quotient
+        New jackknifed object representing the quotient.
+        Samples whose denominator is zero are set to NaN.
     """
     if jk1.N != jk2.N:
         raise ValueError("Jackknife objects must have the same N")
 
     denom = jk2.jk_samples
 
-    if check_zero:
-        if np.any(denom == 0.0):
-            raise ZeroDivisionError("Division by zero in jackknife samples")    
+    with np.errstate(divide='ignore', invalid='ignore'):
+        samples = np.where(denom == 0.0, np.nan, jk1.jk_samples / denom)
 
-    samples = jk1.jk_samples / denom
     return Jackknife.from_samples(samples)
 
 def divide_corrs(corr1, corr2):
@@ -690,12 +692,20 @@ def effective_mass(jack_C, method="cosh"):
     jack_meff = []
     
     for t in range(Nt - 1):
-        # Ratio C(t) / C(t+1)
+        # Ratio C(t) / C(t+1); zero denominator samples become NaN
         jk_ratio = jack_div(jack_C[t], jack_C[t + 1])
 
         if method == "log":
-            # Apply log sample-by-sample
-            samples = np.log(jk_ratio.jk_samples)
+            # Apply log sample-by-sample; non-positive ratios (incl. NaN) -> NaN
+            with np.errstate(divide='ignore', invalid='ignore'):
+                ratio_samples = jk_ratio.jk_samples
+                samples = np.where(ratio_samples > 0,
+                                   np.log(ratio_samples), np.nan)
+
+            # If every sample is NaN the timeslice is unusable
+            if np.all(np.isnan(samples)):
+                jack_meff.append(None)
+                continue
 
         elif method == "cosh":
             guess = log_meff_guess(jack_C[t], jack_C[t + 1])
@@ -709,7 +719,7 @@ def effective_mass(jack_C, method="cosh"):
             samples = []
 
             for R in jk_ratio.jk_samples:
-                if R <= 0:
+                if not np.isfinite(R) or R <= 0:
                     samples.append(np.nan)
                 else:
                     samples.append(
@@ -717,10 +727,16 @@ def effective_mass(jack_C, method="cosh"):
                     )
 
             samples = np.array(samples)
+
+            # If every sample is NaN the timeslice is unusable
+            if np.all(np.isnan(samples)):
+                jack_meff.append(None)
+                continue
+
         else:
             raise NotImplementedError(
                 f"Effective mass method '{method}' not implemented"
-            )        
+            )
 
         # Build Jackknife object from derived samples
         jk_meff = Jackknife.from_samples(samples)

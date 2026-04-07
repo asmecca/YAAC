@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
+import itertools
+import os
+
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
-import itertools
 
-plt.style.use('./myplot.mplstyle')
+_MPLSTYLE = os.path.join(os.path.dirname(__file__), 'myplot.mplstyle')
+if os.path.isfile(_MPLSTYLE):
+    plt.style.use(_MPLSTYLE)
 
 class Jackknife:
     
-    def __init__(self, data, estimator= lambda x:np.mean(x),binsize=None, nbins=None):
+    def __init__(self, data, estimator=lambda x: np.mean(x), binsize=None, nbins=None):
         """
         Parameters
         ----------
@@ -124,8 +128,7 @@ def bin_data(data, binsize=None, nbins=None, axis=0, drop_remainder=True):
 
     return np.moveaxis(x, 0, axis)
 
-
-aadef read_corr(filename, tempo=None, from_samples=False, col2=False,
+def read_corr(filename, tempo=None, from_samples=False, col2=False,
               binsize=None, nbins=None):
     """
     Reading Correlator:
@@ -133,37 +136,37 @@ aadef read_corr(filename, tempo=None, from_samples=False, col2=False,
       Ncnfg N_t N_t/2
     """
     corr = []
- 
+
     with open(filename, 'r') as f:
         first_line = f.readline().strip('\n')
         x = first_line.split()
         cnfg = int(x[0])
         time = int(x[1])
         T = int(x[2])
- 
+
         for line in f:
             x = line.split()
             if x[0] != str(cnfg):
                 corr += [float(x[1])] if col2 else [float(x[0])]
- 
+
     if tempo is not None:
-        time=tempo
- 
-    C = np.zeros((cnfg,time),dtype=float)
-    for i in range(0,cnfg):
-        for t in range(0,time):
-            C[i][t] = corr[i*time + t]
- 
+        time = tempo
+
+    C = np.zeros((cnfg, time), dtype=float)
+    for i in range(cnfg):
+        for t in range(time):
+            C[i][t] = corr[i * time + t]
+
     if (binsize is not None) or (nbins is not None):
         C = bin_data(C, binsize=binsize, nbins=nbins, axis=0)
- 
+
     t_C = C.T
-    jk_corr = [None]*time
-    if from_samples is True:
-        for t in range(0,time):
+    jk_corr = [None] * time
+    if from_samples:
+        for t in range(time):
             jk_corr[t] = Jackknife.from_samples(t_C[t])
     else:
-        for t in range(0,time):
+        for t in range(time):
             jk_corr[t] = Jackknife(t_C[t])
     return jk_corr
 
@@ -191,8 +194,7 @@ def plot_corr(corr, xlabel, ylabel, ylim=None, yscale=None, data_label=None, col
         fig.savefig(save)
     plt.show()
 
-
-def plot_multi_corr(list_corr,xlabel,ylabel,ylim=None,yscale=None,list_label=None,ncol=1,save=None,x_offset=None,hline=None,herr=None,hlabel=None,vline=None,verr=None,vlabel=None):
+def plot_multi_corr(list_corr,xlabel,ylabel,xlim=None,ylim=None,yscale=None,list_label=None,ncol=1,save=None,x_offset=None,hline=None,herr=None,hlabel=None,vline=None,verr=None,vlabel=None):
     # plots many correlators for comparisons
     plt.ylabel(ylabel)
     plt.xlabel(xlabel)
@@ -203,15 +205,18 @@ def plot_multi_corr(list_corr,xlabel,ylabel,ylim=None,yscale=None,list_label=Non
     if vline is not None:
         plt.axvline(x=vline,color='black',ls='--',label=vlabel)
     if verr is not None:
-        plt.axvspan(vline-verr,vline+verr,color='gray',alpha=0.4)    
+        plt.axvspan(vline-verr,vline+verr,color='gray',alpha=0.4)
     if ylim is not None:
         y_i, y_f = ylim
         plt.ylim(y_i,y_f)
+    if xlim is not None:
+        x_i, x_f = xlim
+        plt.xlim(x_i,x_f)
     if yscale is not None:
         plt.yscale(yscale)
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
     markers = ['o', 's', '^', 'v', 'D', '*', 'P', 'X']
-    for i in range(0,len(list_corr)):
+    for i in range(len(list_corr)):
         color = colors[i % len(colors)]
         marker = markers[i % len(markers)]        
         corr = list_corr[i]
@@ -231,8 +236,9 @@ def plot_multi_corr(list_corr,xlabel,ylabel,ylim=None,yscale=None,list_label=Non
     if save is not None:
         fig=plt.gcf()
         fig.savefig(save)
-    plt.show()    
+    plt.show()
     
+
 def jackknife_covariance(jk):
     """
     Compute jackknife variance / covariance.
@@ -287,7 +293,7 @@ def jackknife_covariance(jk):
 
     return cov
 
-def jack_add(jk1,jk2):
+def jack_add(jk1, jk2):
     """
     Add two Jackknife objects sample-by-sample.
 
@@ -299,9 +305,8 @@ def jack_add(jk1,jk2):
     Returns
     -------
     Jackknife
-        New jackknifed object representing the product
+        New jackknifed object representing the sum
     """
-
     if jk1.N != jk2.N:
         raise ValueError("Jackknife objects must have the same N")
 
@@ -309,71 +314,67 @@ def jack_add(jk1,jk2):
     return Jackknife.from_samples(samples)
 
 
-def add_corrs(corr1,corr2):
+def add_corrs(corr1, corr2):
     """
     Add two Jackknife correlators sample-by-sample.
 
     Parameters
     ----------
-    corr1, corr2 : Jackknife
-        Objects with identical N and compatible shapes
+    corr1, corr2 : list of Jackknife
 
     Returns
     -------
-    Jackknife
-        New jackknifed object representing the product
-    """    
+    list of Jackknife
+        New jackknifed correlator representing the sum
+    """
     if len(corr1) != len(corr2):
         raise ValueError("Correlators must have the same length")
 
-    res=[None]*len(corr1)
-    for t in range(0,len(corr1)):
-        res[t] = jack_add(corr1[t],corr2[t])
-    
+    res = [None] * len(corr1)
+    for t in range(len(corr1)):
+        res[t] = jack_add(corr1[t], corr2[t])
+
     return res
 
-def jack_add_d(jk1,d):
+def jack_add_d(jk1, d):
     """
-    Add a Jackknife object and a double sample-by-sample.
+    Add a scalar to a Jackknife object sample-by-sample.
 
     Parameters
     ----------
     jk1 : Jackknife
-        Objects with identical N and compatible shapes    
-    d : float
+    d : scalar
 
     Returns
     -------
     Jackknife
-        New jackknifed object representing the product
+        New jackknifed object representing the sum
     """
-
     samples = jk1.jk_samples + d
     return Jackknife.from_samples(samples)
 
 
-def add_corrs_d(corr1,d):
+def add_corrs_d(corr1, d):
     """
-    Add a Jackknife correlator and a double sample-by-sample.
+    Add a scalar to a Jackknife correlator sample-by-sample.
 
     Parameters
     ----------
-    corr1 : Jackknife
-        Objects with identical N and compatible shapes    
-    d : float
+    corr1 : list of Jackknife
+    d : scalar
 
     Returns
     -------
-    Jackknife
-        New jackknifed object representing the product
-    """    
-    res=[None]*len(corr1)
+    list of Jackknife
+        New jackknifed correlator representing the sum
+    """
+    res = [None] * len(corr1)
     for t in range(len(corr1)):
-        res[t] = jack_add_d(corr1[t],d)
-    
+        res[t] = jack_add_d(corr1[t], d)
+
     return res
 
-def jack_mul(jk1,jk2):
+def jack_mul(jk1, jk2):
     """
     Multiply two Jackknife objects sample-by-sample.
 
@@ -387,102 +388,98 @@ def jack_mul(jk1,jk2):
     Jackknife
         New jackknifed object representing the product
     """
-
     if jk1.N != jk2.N:
         raise ValueError("Jackknife objects must have the same N")
 
     samples = jk1.jk_samples * jk2.jk_samples
     return Jackknife.from_samples(samples)
 
-def jack_mul_d(jk1,d):
+def jack_mul_d(jk1, d):
     """
-    Multiply a Jackknife object and a double sample-by-sample.
+    Multiply a Jackknife object by a scalar sample-by-sample.
 
     Parameters
     ----------
     jk1 : Jackknife
-        Objects with identical N and compatible shapes
+    d : scalar (int, float, or numpy scalar)
 
     Returns
     -------
     Jackknife
         New jackknifed object representing the product
     """
-    if isinstance(d,float) is False:
-        raise ValueError("d is not a float")
+    if not np.isscalar(d):
+        raise ValueError("d must be a scalar")
 
     samples = jk1.jk_samples * d
     return Jackknife.from_samples(samples)
 
-def jack_div_d(jk1,d):
+def jack_div_d(jk1, d):
     """
-    Divide a Jackknife object and a double sample-by-sample.
+    Divide a Jackknife object by a scalar sample-by-sample.
 
     Parameters
     ----------
     jk1 : Jackknife
-        Objects with identical N and compatible shapes
+    d : scalar (int, float, or numpy scalar)
 
     Returns
     -------
     Jackknife
-        New jackknifed object representing the product
+        New jackknifed object representing the quotient
     """
-    if isinstance(d,float) is False:
-        raise ValueError("d is not a float")
+    if not np.isscalar(d):
+        raise ValueError("d must be a scalar")
 
     samples = jk1.jk_samples / d
     return Jackknife.from_samples(samples)
 
-def multiply_corrs(corr1,corr2):
+def multiply_corrs(corr1, corr2):
     """
     Multiply two Jackknife correlators sample-by-sample.
 
     Parameters
     ----------
-    corr1, corr2 : Jackknife
-        Objects with identical N and compatible shapes
+    corr1, corr2 : list of Jackknife
 
     Returns
     -------
-    Jackknife
-        New jackknifed object representing the product
+    list of Jackknife
+        New jackknifed correlator representing the product
     """
-    
     if len(corr1) != len(corr2):
         raise ValueError("Correlators must have the same length")
 
-    res=[None]*len(corr1)
-    for t in range(0,len(corr1)):
-        res[t] = jack_mul(corr1[t],corr2[t])
-    
+    res = [None] * len(corr1)
+    for t in range(len(corr1)):
+        res[t] = jack_mul(corr1[t], corr2[t])
+
     return res
 
-def multiply_corr_d(corr1,d):
+def multiply_corr_d(corr1, d):
     """
-    Multiply a Jackknife correlators and a double sample-by-sample.
+    Multiply a Jackknife correlator by a scalar sample-by-sample.
 
     Parameters
     ----------
-    corr1 : Jackknife
-        Objects with identical N and compatible shapes
-    d: float
+    corr1 : list of Jackknife
+    d : scalar (int, float, or numpy scalar)
 
     Returns
     -------
-    Jackknife
-        New jackknifed object representing the product
-    """    
-    if isinstance(d,float) is False:
-        raise ValueError("d is not a float")
+    list of Jackknife
+        New jackknifed correlator representing the product
+    """
+    if not np.isscalar(d):
+        raise ValueError("d must be a scalar")
 
-    res=[None]*len(corr1)
-    for t in range(0,len(corr1)):
-        res[t] = jack_mul_d(corr1[t],d)
-    
+    res = [None] * len(corr1)
+    for t in range(len(corr1)):
+        res[t] = jack_mul_d(corr1[t], d)
+
     return res
 
-def jack_div(jk1,jk2,check_zero=True):
+def jack_div(jk1, jk2, check_zero=True):
     """
     Divide two Jackknife objects sample-by-sample.
 
@@ -494,9 +491,8 @@ def jack_div(jk1,jk2,check_zero=True):
     Returns
     -------
     Jackknife
-        New jackknifed object representing the division
+        New jackknifed object representing the quotient
     """
-
     if jk1.N != jk2.N:
         raise ValueError("Jackknife objects must have the same N")
 
@@ -509,109 +505,102 @@ def jack_div(jk1,jk2,check_zero=True):
     samples = jk1.jk_samples / denom
     return Jackknife.from_samples(samples)
 
-def divide_corrs(corr1,corr2):
+def divide_corrs(corr1, corr2):
     """
     Divide two Jackknife correlators sample-by-sample.
 
     Parameters
     ----------
-    corr1, corr2 : Jackknife
-        Objects with identical N and compatible shapes
+    corr1, corr2 : list of Jackknife
 
     Returns
     -------
-    Jackknife
-        New jackknifed object representing the product
+    list of Jackknife
+        New jackknifed correlator representing the quotient
     """
-    
     if len(corr1) != len(corr2):
         raise ValueError("Correlators must have the same length")
 
-    res=[None]*len(corr1)
-    for t in range(0,len(corr1)):
-        res[t] = jack_div(corr1[t],corr2[t])
-    
+    res = [None] * len(corr1)
+    for t in range(len(corr1)):
+        res[t] = jack_div(corr1[t], corr2[t])
+
     return res
 
-def divide_corr_d(corr1,d):
+def divide_corr_d(corr1, d):
     """
-    Divide a Jackknife correlators and a double sample-by-sample.
+    Divide a Jackknife correlator by a scalar sample-by-sample.
 
     Parameters
     ----------
-    corr1 : Jackknife
-        Objects with identical N and compatible shapes
-    d: float
+    corr1 : list of Jackknife
+    d : scalar (int, float, or numpy scalar)
 
     Returns
     -------
-    Jackknife
-        New jackknifed object representing the product
-    """    
-    
-    if isinstance(d,float) is False:
-        raise ValueError("d is not a float")
+    list of Jackknife
+        New jackknifed correlator representing the quotient
+    """
+    if not np.isscalar(d):
+        raise ValueError("d must be a scalar")
 
-    res=[None]*len(corr1)
-    for t in range(0,len(corr1)):
-        res[t] = jack_div_d(corr1[t],d)
-    
+    res = [None] * len(corr1)
+    for t in range(len(corr1)):
+        res[t] = jack_div_d(corr1[t], d)
+
     return res
 
 def jack_exp(jk1):
     """
-    gets exp of Jackknife object sample-by-sample.
+    Apply exp to a Jackknife object sample-by-sample.
 
     Parameters
     ----------
     jk1 : Jackknife
-        Objects with identical N and compatible shapes
 
     Returns
     -------
     Jackknife
-        New jackknifed object representing the product
+        New jackknifed object representing exp(jk1)
     """
-
     samples = np.exp(jk1.jk_samples)
     return Jackknife.from_samples(samples)
 
-def jack_pow(jk1,d):
+def jack_pow(jk1, d):
     """
-    gets power of Jackknife object sample-by-sample.
+    Raise a Jackknife object to a power sample-by-sample.
 
     Parameters
     ----------
     jk1 : Jackknife
-        Objects with identical N and compatible shapes
+    d : scalar
 
     Returns
     -------
     Jackknife
-        New jackknifed object representing the product
+        New jackknifed object representing jk1 ** d
     """
-
-    samples = np.power(jk1.jk_samples,d)
+    samples = np.power(jk1.jk_samples, d)
     return Jackknife.from_samples(samples)
 
 
-def corr_pow(corr,d):
+def corr_pow(corr, d):
     """
-    gets power of correlator object sample-by-sample.
+    Raise a Jackknife correlator to a power sample-by-sample.
 
     Parameters
     ----------
-    corr : Jackknife
-        Objects with identical N and compatible shapes
+    corr : list of Jackknife
+    d : scalar
 
     Returns
     -------
-    corr
-        New jackknifed object representing the product
+    list of Jackknife
+        New jackknifed correlator representing corr ** d
     """
-    res=[None]*len(corr)
-    for t in range(0,len(corr)):
-        res[t] = jack_pow(corr[t],d)
+    res = [None] * len(corr)
+    for t in range(len(corr)):
+        res[t] = jack_pow(corr[t], d)
 
     return res
 
@@ -866,7 +855,12 @@ def jackknife_fit(corrs, x, fit_func, p0, fit_range=None, correlated=False, cov=
 def format_with_error(value, error, nsig=2):
     """
     Format a value with uncertainty as x.xxx(yy).
-    
+ 
+    The parenthetical notation x.xxx(yy) means the last displayed digits
+    of the value are uncertain by yy. Works correctly for both sub-unit
+    errors (e.g. 1.234(25)) and multi-digit errors (e.g. 320.5(25),
+    1230(120)).
+ 
     Parameters
     ----------
     value : float
@@ -876,26 +870,36 @@ def format_with_error(value, error, nsig=2):
     """
     if error <= 0:
         return f"{value}"
-
+ 
     # Order of magnitude of the error
     exp = int(np.floor(np.log10(error)))
-    
-    # Rounded error with nsig significant digits
-    err_rounded = round(error, -exp + (nsig - 1))
-    
-    # Number of decimal places to show
-    decimals = max(0, -(exp - (nsig - 1)))
-    
-    # Rounded value
-    val_rounded = round(value, decimals)
-
-    # Error in integer form
-    err_int = int(round(err_rounded * 10**decimals))
-
-    fmt = f"{{:.{decimals}f}}({{}})"
-    return fmt.format(val_rounded, err_int)
-
-
+ 
+    if exp < 0:
+        # Error is smaller than 1: use decimal notation
+        decimals = -(exp - (nsig - 1))
+        err_rounded = round(error, -exp + (nsig - 1))
+        val_rounded = round(value, decimals)
+        err_int = int(round(err_rounded * 10**decimals))
+        fmt = f"{{:.{decimals}f}}({{}})"
+        return fmt.format(val_rounded, err_int)
+    else:
+        # Error is >= 1: round both to the same significant place
+        round_to = exp - (nsig - 1)
+        if round_to >= 0:
+            # Error rounds to tens, hundreds, etc.
+            scale = 10**round_to
+            err_int = int(round(error / scale)) * scale
+            val_int = int(round(value / scale)) * scale
+            return f"{val_int}({err_int})"
+        else:
+            # Error >= 1 but rounds to a decimal place (e.g. 2.5 with nsig=2)
+            decimals = -round_to
+            err_rounded = round(error, decimals)
+            val_rounded = round(value, decimals)
+            err_int = int(round(err_rounded * 10**decimals))
+            fmt = f"{{:.{decimals}f}}({{}})"
+            return fmt.format(val_rounded, err_int)
+        
 def _symmetrise(M):
     return 0.5 * (M + np.swapaxes(M, -1, -2))
 
