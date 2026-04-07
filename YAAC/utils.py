@@ -194,7 +194,7 @@ def plot_corr(corr, xlabel, ylabel, ylim=None, yscale=None, data_label=None, col
         fig.savefig(save)
     plt.show()
 
-def plot_multi_corr(list_corr,xlabel,ylabel,ylim=None,yscale=None,list_label=None,ncol=1,save=None,x_offset=None,hline=None,herr=None,hlabel=None,vline=None,verr=None,vlabel=None):
+def plot_multi_corr(list_corr,xlabel,ylabel,xlim=None,ylim=None,yscale=None,list_label=None,ncol=1,save=None,x_offset=None,hline=None,herr=None,hlabel=None,vline=None,verr=None,vlabel=None):
     # plots many correlators for comparisons
     plt.ylabel(ylabel)
     plt.xlabel(xlabel)
@@ -205,10 +205,13 @@ def plot_multi_corr(list_corr,xlabel,ylabel,ylim=None,yscale=None,list_label=Non
     if vline is not None:
         plt.axvline(x=vline,color='black',ls='--',label=vlabel)
     if verr is not None:
-        plt.axvspan(vline-verr,vline+verr,color='gray',alpha=0.4)    
+        plt.axvspan(vline-verr,vline+verr,color='gray',alpha=0.4)
     if ylim is not None:
         y_i, y_f = ylim
         plt.ylim(y_i,y_f)
+    if xlim is not None:
+        x_i, x_f = xlim
+        plt.xlim(x_i,x_f)
     if yscale is not None:
         plt.yscale(yscale)
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
