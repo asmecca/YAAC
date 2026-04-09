@@ -300,7 +300,7 @@ def jack_add(jk1, jk2):
         raise ValueError("Jackknife objects must have the same N")
 
     samples = jk1.jk_samples + jk2.jk_samples
-    return Jackknife.from_samples(samples)
+    return Jackknife.from_samples(samples, theta=jk1.theta + jk2.theta)
 
 
 def add_corrs(corr1, corr2):
@@ -340,7 +340,7 @@ def jack_add_d(jk1, d):
         New jackknifed object representing the sum
     """
     samples = jk1.jk_samples + d
-    return Jackknife.from_samples(samples)
+    return Jackknife.from_samples(samples, theta=jk1.theta + d)
 
 
 def add_corrs_d(corr1, d):
@@ -381,7 +381,7 @@ def jack_mul(jk1, jk2):
         raise ValueError("Jackknife objects must have the same N")
 
     samples = jk1.jk_samples * jk2.jk_samples
-    return Jackknife.from_samples(samples)
+    return Jackknife.from_samples(samples, theta=jk1.theta * jk2.theta)
 
 def jack_mul_d(jk1, d):
     """
@@ -401,7 +401,7 @@ def jack_mul_d(jk1, d):
         raise ValueError("d must be a scalar")
 
     samples = jk1.jk_samples * d
-    return Jackknife.from_samples(samples)
+    return Jackknife.from_samples(samples, theta=jk1.theta * d)
 
 def jack_div_d(jk1, d):
     """
@@ -421,7 +421,7 @@ def jack_div_d(jk1, d):
         raise ValueError("d must be a scalar")
 
     samples = jk1.jk_samples / d
-    return Jackknife.from_samples(samples)
+    return Jackknife.from_samples(samples, theta=jk1.theta / d)
 
 def multiply_corrs(corr1, corr2):
     """
@@ -493,8 +493,8 @@ def jack_div(jk1, jk2, check_zero=True):
 
     with np.errstate(divide='ignore', invalid='ignore'):
         samples = np.where(denom == 0.0, np.nan, jk1.jk_samples / denom)
-
-    return Jackknife.from_samples(samples)
+    theta = jk1.theta / jk2.theta if jk2.theta != 0.0 else np.nan
+    return Jackknife.from_samples(samples, theta=theta)
 
 def divide_corrs(corr1, corr2):
     """
@@ -555,7 +555,7 @@ def jack_exp(jk1):
         New jackknifed object representing exp(jk1)
     """
     samples = np.exp(jk1.jk_samples)
-    return Jackknife.from_samples(samples)
+    return Jackknife.from_samples(samples, theta=np.exp(jk1.theta))
 
 def jack_pow(jk1, d):
     """
@@ -572,7 +572,7 @@ def jack_pow(jk1, d):
         New jackknifed object representing jk1 ** d
     """
     samples = np.power(jk1.jk_samples, d)
-    return Jackknife.from_samples(samples)
+    return Jackknife.from_samples(samples, theta=np.power(jk1.theta, d))
 
 
 def corr_pow(corr, d):
@@ -695,6 +695,8 @@ def effective_mass(jack_C, method="cosh"):
             if np.all(np.isnan(samples)):
                 jack_meff.append(None)
                 continue
+            
+            theta = np.log(jk_ratio.theta) if jk_ratio.theta > 0 else np.nan
 
         elif method == "cosh":
             guess = log_meff_guess(jack_C[t], jack_C[t + 1])
@@ -721,19 +723,22 @@ def effective_mass(jack_C, method="cosh"):
             if np.all(np.isnan(samples)):
                 jack_meff.append(None)
                 continue
-
+            
+            theta = meff_cosh_from_ratio(jk_ratio.theta, t, Nt, guess) if (  
+                np.isfinite(jk_ratio.theta) and jk_ratio.theta > 0) else np.nan
+            
         else:
             raise NotImplementedError(
                 f"Effective mass method '{method}' not implemented"
             )
 
         # Build Jackknife object from derived samples
-        jk_meff = Jackknife.from_samples(samples)
+        jk_meff = Jackknife.from_samples(samples, theta=theta)
         jack_meff.append(jk_meff)
 
     return jack_meff
 
-def fit_effective_mass(jack_C,fit_range=None):
+def fit_effective_mass(jack_C, fit_range=None):
     """
     fits effective mass jackknife correlator to a constant
     
@@ -743,13 +748,20 @@ def fit_effective_mass(jack_C,fit_range=None):
         chi2: correlated chi^2/d.o.f.    
     """
     
-    def cnst_func(x,a):
+    def cnst_func(x, a):
         return a
-    
+
     x = np.arange(len(jack_C))
     cov = jackknife_covariance(jack_C)
-    params,chi2 = jackknife_fit(jack_C, x, cnst_func, p0=[1.0], fit_range=fit_range, cov=cov, correlated=True)
-    E = Jackknife.from_samples(params[:,0])
+    params, chi2 = jackknife_fit(jack_C, x, cnst_func, p0=[1.0], fit_range=fit_range, cov=cov, correlated=True)
+
+    # Fit on full-sample thetas to get theta for the output Jackknife  ← new
+    tmin, tmax = fit_range if fit_range is not None else (0, len(jack_C))
+    y_full = np.array([jk.theta for jk in jack_C[tmin:tmax]])
+    x_fit = x[tmin:tmax]
+    popt_full, _ = curve_fit(cnst_func, x_fit, y_full, p0=[1.0])  # ← new
+
+    E = Jackknife.from_samples(params[:, 0], theta=popt_full[0])  # ← theta added
     return E, chi2
     
 
@@ -1126,10 +1138,9 @@ def project_state(G, vecs, state=0):
     -------
     Cproj : list length T
         Cproj[t] is a Jackknife (or None)
-    """
+    """    
     T = len(G)
     N = np.asarray(G[0], dtype=object).shape[0]
-
     Cproj = [None] * T
 
     for t in range(T):
@@ -1137,21 +1148,22 @@ def project_state(G, vecs, state=0):
         if v is None or G[t] is None:
             continue
 
-        # v is a list of Jackknife components
-        v_s = np.stack([vk.jk_samples for vk in v], axis=1)   # (ns, N)
+        v_s = np.stack([vk.jk_samples for vk in v], axis=1)  # (ns, N)
 
-        # matrix samples
         Gt = np.asarray(G[t], dtype=object)
         ns = v_s.shape[0]
         G_s = np.zeros((ns, N, N), dtype=float)
         for i in range(N):
             for j in range(N):
                 G_s[:, i, j] = Gt[i, j].jk_samples
-
-        # compute C_s[k] = v_s[k]^T G_s[k] v_s[k]
         C_s = np.einsum("ki,kij,kj->k", v_s, G_s, v_s)
 
-        # wrap into Jackknife
-        Cproj[t] = type(Gt[0, 0]).from_samples(C_s)
+        # Compute theta from full-sample eigenvector and correlator  ← new
+        v_theta = np.array([vk.theta for vk in v])
+        G_theta = np.array([[Gt[i, j].theta for j in range(N)] for i in range(N)])
+        theta = v_theta @ G_theta @ v_theta  # ← new
+
+        Cproj[t] = type(Gt[0, 0]).from_samples(C_s, theta=theta)  # ← theta added
 
     return Cproj
+
