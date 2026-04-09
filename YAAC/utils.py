@@ -61,29 +61,18 @@ class Jackknife:
         return [np.delete(data, i, axis=0) for i in range(N)]
 
     @classmethod
-    def from_samples(cls, jk_samples):
-        """
-        Construct a Jackknife object directly from jackknife samples.
-        """
+    def from_samples(cls, jk_samples, theta=None):
         obj = cls.__new__(cls)
-
         obj.jk_samples = np.asarray(jk_samples)
         obj.N = obj.jk_samples.shape[0]
-
         obj.mean = np.mean(obj.jk_samples, axis=0)
-
-        diff = obj.jk_samples - obj.mean
+        obj.theta = theta if theta is not None else obj.mean 
+        diff = obj.jk_samples - obj.theta
         obj.var = (obj.N - 1) / obj.N * np.sum(diff**2, axis=0)
         obj.std = np.sqrt(obj.var)
-
-        # For derived objects, theta is the mean estimator
-        obj.theta = obj.mean
-        obj.unbiased = obj.mean
-
-        # These are undefined / unused here
+        obj.unbiased = obj.N * obj.theta - (obj.N - 1) * obj.mean
         obj.data = None
         obj.estimator = None
-
         return obj
 
 def _get_jackknife_samples(jk):
