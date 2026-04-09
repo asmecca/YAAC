@@ -253,7 +253,7 @@ def jackknife_covariance(jk):
         mean = jk.mean
         N = jk.N
 
-        diff = samples - mean
+        diff = samples - jk.theta
         return (N - 1) / N * np.sum(diff * diff, axis=0)
 
     # --------------------------------------------------
@@ -275,7 +275,9 @@ def jackknife_covariance(jk):
     mean = np.mean(samples, axis=0)
 
     # Reshape to (Njack, Nt) for correlator-like objects
-    diff = samples - mean
+    theta = np.array([j.theta for j in jk_list])  # shape (Nt,)
+    diff = samples - theta  # broadcasts: (Njack, Nt) - (Nt,)
+
 
     # Covariance: (Nt x Nt)
     cov = (N - 1) / N * np.tensordot(diff, diff, axes=(0, 0))
@@ -818,6 +820,7 @@ def jackknife_fit(corrs, x, fit_func, p0, fit_range=None, correlated=False, cov=
         data_all = data_all[:, tmin:tmax]
         x_fit = x[tmin:tmax]
     else:
+        tmin, tmax = 0, Nt
         x_fit = x
 
     Nj, Nt_fit = data_all.shape
