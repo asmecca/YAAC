@@ -44,7 +44,7 @@ class Jackknife:
         self.mean = np.mean(self.jk_samples, axis=0)
 
         # Jackknife variance (unbiased)
-        diff = self.jk_samples - self.mean
+        diff = self.jk_samples - self.theta
         self.var = (self.N - 1) / self.N * np.sum(diff**2, axis=0)
         self.std = np.sqrt(self.var)
 
