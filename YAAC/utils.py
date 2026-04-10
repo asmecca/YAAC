@@ -164,8 +164,8 @@ def symmetrise(corr):
     if T % 2 != 0:
         raise ValueError("corr is not even")
     for t in range(0,int(T/2)):
-        corr[t] = yaac.add_corrs(corr[t],corr[T-t])
-        corr[t] = yaac.divide_corr_d(corr[t],2)
+        corr[t] = add_corrs(corr[t],corr[T-t])
+        corr[t] = divide_corr_d(corr[t],2)
     return corr
 
 def plot_corr(corr, xlabel, ylabel, ylim=None, yscale=None, data_label=None, color='blue', marker='o', ncol=1, save=None, hline=None, hlabel=None, vline=None, vlabel=None):
