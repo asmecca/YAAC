@@ -163,12 +163,10 @@ def symmetrise(corr):
     T = int(len(corr))
     if T % 2 != 0:
         raise ValueError("corr is not even")
-    for t in range(0,T):
-        if t < int(T/2):
-            corr[t] = jack_add(corr[t],corr[T-1-t])
-        else:
-            corr[t] = jack_mul_d(corr[t],0)
-    corr = divide_corr_d(corr,2)
+    for t in range(1, T // 2):
+        sym = jack_mul_d(jack_add(corr[t], corr[T - t]), 0.5)
+        corr[t] = sym
+        corr[T - t] = sym
     return corr
 
 def plot_corr(corr, xlabel, ylabel, ylim=None, yscale=None, data_label=None, color='blue', marker='o', ncol=1, save=None, hline=None, hlabel=None, vline=None, vlabel=None):
