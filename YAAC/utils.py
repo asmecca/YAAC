@@ -168,6 +168,7 @@ def symmetrise(corr):
             corr[t] = jack_add(corr[t],corr[T-1-t])
         else:
             corr[t] = jack_mul_d(corr[t],0)
+    corr = divide_corr_d(corr,2)
     return corr
 
 def plot_corr(corr, xlabel, ylabel, ylim=None, yscale=None, data_label=None, color='blue', marker='o', ncol=1, save=None, hline=None, hlabel=None, vline=None, vlabel=None):
