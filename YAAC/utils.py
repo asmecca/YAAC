@@ -476,7 +476,8 @@ def multiply_corr_d(corr1, d):
 
     res = [None] * len(corr1)
     for t in range(len(corr1)):
-        res[t] = jack_mul_d(corr1[t], d)
+        if corr1[t] is not None:
+            res[t] = jack_mul_d(corr1[t], d)
 
     return res
 
