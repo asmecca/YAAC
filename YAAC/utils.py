@@ -198,7 +198,11 @@ def plot_multi_corr(list_corr,xlabel,ylabel,xlim=None,ylim=None,yscale=None,list
     plt.ylabel(ylabel)
     plt.xlabel(xlabel)
     if hline is not None:
-        plt.axhline(y=hline,color='black',ls='--',label=hlabel)
+        if isinstance(hline, (int, float, complex)):
+            plt.axhline(y=hline,color='black',ls='--',label=hlabel)
+        else:
+            for i in range(0,len(hline)):
+                plt.axhline(y=hline[i],color=list_color[i],ls='--',label=hlabel[i])
     if herr is not None:
         plt.axhspan(hline-herr,hline+herr,color='gray',alpha=0.4)    
     if vline is not None:
@@ -229,7 +233,7 @@ def plot_multi_corr(list_corr,xlabel,ylabel,xlim=None,ylim=None,yscale=None,list
         for t in range(len(corr)):
             if corr[t] is not None and corr[t] is not np.nan:
                 label = data_label if t == 0 else None
-                plt.errorbar(x=t + i * offset, y=corr[t].mean, yerr=corr[t].std, color=color, fmt=marker, label=label)
+                plt.errorbar(x=t + i * offset, y=corr[t].mean, yerr=corr[t].std, color=color, fmt=marker,mfc='none', label=label)
         if data_label is not None:
             plt.legend(loc='best', ncol=ncol)
     if save is not None:
