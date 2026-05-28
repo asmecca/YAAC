@@ -195,6 +195,8 @@ def plot_corr(corr, xlabel, ylabel, ylim=None, yscale=None, data_label=None, col
 
 def plot_multi_corr(list_corr,xlabel,ylabel,xlim=None,ylim=None,yscale=None,list_label=None,ncol=1,save=None,x_offset=None,hline=None,herr=None,hlabel=None,vline=None,verr=None,vlabel=None):
     # plots many correlators for comparisons
+    colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    markers = ['o', 's', '^', 'v', 'D', '*', 'P', 'X']
     plt.ylabel(ylabel)
     plt.xlabel(xlabel)
     if hline is not None:
@@ -217,8 +219,6 @@ def plot_multi_corr(list_corr,xlabel,ylabel,xlim=None,ylim=None,yscale=None,list
         plt.xlim(x_i,x_f)
     if yscale is not None:
         plt.yscale(yscale)
-    colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-    markers = ['o', 's', '^', 'v', 'D', '*', 'P', 'X']
     for i in range(len(list_corr)):
         color = colors[i % len(colors)]
         marker = markers[i % len(markers)]        
