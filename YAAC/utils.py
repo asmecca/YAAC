@@ -202,7 +202,7 @@ def plot_multi_corr(list_corr,xlabel,ylabel,xlim=None,ylim=None,yscale=None,list
             plt.axhline(y=hline,color='black',ls='--',label=hlabel)
         else:
             for i in range(0,len(hline)):
-                plt.axhline(y=hline[i],color=list_color[i],ls='--',label=hlabel[i])
+                plt.axhline(y=hline[i],color=colors[i % len(colors)],ls='--',label=hlabel[i])
     if herr is not None:
         plt.axhspan(hline-herr,hline+herr,color='gray',alpha=0.4)    
     if vline is not None:
