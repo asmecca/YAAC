@@ -193,7 +193,7 @@ def plot_corr(corr, xlabel, ylabel, ylim=None, yscale=None, data_label=None, col
         fig.savefig(save)
     plt.show()
 
-def plot_multi_corr(list_corr,xlabel,ylabel,xlim=None,ylim=None,yscale=None,list_label=None,ncol=1,save=None,x_offset=None,hline=None,herr=None,hlabel=None,vline=None,verr=None,vlabel=None,alpha_list=None):
+def plot_multi_corr(list_corr,xlabel,ylabel,xlim=None,ylim=None,yscale=None,list_label=None,ncol=1,save=None,x_offset=None,hline=None,herr=None,hlabel=None,vline=None,verr=None,vlabel=None,alpha_list=None,x_offset_list=None):
     # plots many correlators for comparisons
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
     markers = ['o', 's', '^', 'v', 'D', '*', 'P', 'X']
@@ -230,6 +230,11 @@ def plot_multi_corr(list_corr,xlabel,ylabel,xlim=None,ylim=None,yscale=None,list
             alpha=1
         if x_offset is not None:
             offset=x_offset
+        if x_offset_list is not None:
+            if i > 0:
+                offset=x_offset_list[i]/i
+            else:
+                offset=x_offset_list[i]
         if list_label is not None:
             data_label = list_label[i]
         else:
