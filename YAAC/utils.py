@@ -1194,3 +1194,42 @@ def project_state(G, vecs, state=0):
 
     return Cproj
 
+def partial_project_state(G, vecs, state=0):
+    """
+    Numerator for eq. D.12:
+        G_J^(n)(t) = ( M(t) v^(n) )_{current_index}
+                   = sum_b v^(n)_b  M(t)_{current_index, b}
+
+    Contracts the SOURCE (column) index of the correlation matrix with the GEVP
+    eigenvector, then selects the row of the current operator O_rho = J.
+    G[t][a, b] = <O_a(t) O_b^dag(0)>  (row = sink, column = source).
+    """
+    current_index=0
+    T = len(G)
+    N = np.asarray(G[0], dtype=object).shape[0]
+    Gnum = [None] * T
+    r = current_index
+
+    for t in range(T):
+        v = vecs[state][t]
+        if v is None or G[t] is None:
+            continue
+
+        v_s = np.stack([vk.jk_samples for vk in v], axis=1)   # (ns, N)
+        Gt = np.asarray(G[t], dtype=object)
+        ns = v_s.shape[0]
+
+        # only the current row of M is needed
+        Grow_s = np.zeros((ns, N), dtype=float)
+        for j in range(N):
+            Grow_s[:, j] = Gt[r, j].jk_samples
+
+        num_s = np.einsum("kj,kj->k", Grow_s, v_s)            # (M(t) v)_r per sample
+
+        v_theta    = np.array([vk.theta for vk in v])
+        Grow_theta = np.array([Gt[r, j].theta for j in range(N)])
+        theta      = Grow_theta @ v_theta
+
+        Gnum[t] = type(Gt[0, 0]).from_samples(num_s, theta=theta)
+
+    return Gnum    
