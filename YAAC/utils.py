@@ -118,7 +118,7 @@ def bin_data(data, binsize=None, nbins=None, axis=0, drop_remainder=True):
     return np.moveaxis(x, 0, axis)
 
 def read_corr(filename, tempo=None, from_samples=False, col2=False,
-              binsize=None, nbins=None):
+              binsize=None, nbins=None,Nconf=None):
     """
     Reading Correlator:
       Data file must have the following first line:
@@ -140,6 +140,9 @@ def read_corr(filename, tempo=None, from_samples=False, col2=False,
 
     if tempo is not None:
         time = tempo
+
+    if Nconf is not None:
+        cnfg = Nconf
 
     C = np.zeros((cnfg, time), dtype=float)
     for i in range(cnfg):
