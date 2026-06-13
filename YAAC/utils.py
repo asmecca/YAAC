@@ -879,6 +879,7 @@ def jackknife_fit(corrs, x, fit_func, p0, fit_range=None, correlated=False, cov=
                 p0=p0,
                 sigma=cov_fit,
                 absolute_sigma=absolute_sigma
+                #maxfev=20000
             )
             r = y - fit_func(x_fit, *popt)
             ychi = np.linalg.solve(L, r)
@@ -1035,6 +1036,16 @@ def gevp(
     JackknifeClass = type(G0_mat[0, 0])
 
     # --- helpers to build sample matrices at a given t ---
+    def _central_mat_at_t(t):
+        Mt = np.asarray(G[t], dtype=object)
+        A = np.array([[Mt[i, j].theta for j in range(N)] for i in range(N)], float)
+        return _symmetrise(A) if symmetrise else A
+
+    def _sign_fix(v_s, v_ref):                # v_s: (ns, Ncomp, Nstate), v_ref: (Ncomp, Nstate)
+        signs = np.sign(np.einsum('cs,kcs->ks', v_ref, v_s))
+        signs[signs == 0] = 1.0
+        return v_s * signs[:, None, :]
+    
     def mat_samples_at_t(t):
         Mt = np.asarray(G[t], dtype=object)
         if Mt.shape != (N, N):
@@ -1075,6 +1086,9 @@ def gevp(
             w, v = _gevp_one_cholesky(Gt_s[k], G0_s[k])
             lam_s[k, :] = w
             v_s[k, :, :] = v
+
+        _, v_ref = _gevp_one_cholesky(_central_mat_at_t(t), _central_mat_at_t(t0)) # added
+        v_s = _sign_fix(v_s, v_ref) #added
 
         return lam_s, v_s
 
