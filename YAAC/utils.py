@@ -566,7 +566,8 @@ def divide_corr_d(corr1, d):
 
     res = [None] * len(corr1)
     for t in range(len(corr1)):
-        res[t] = jack_div_d(corr1[t], d)
+        if corr1[t] is not None:
+            res[t] = jack_div_d(corr1[t], d)
 
     return res
 
@@ -620,7 +621,8 @@ def corr_pow(corr, d):
     """
     res = [None] * len(corr)
     for t in range(len(corr)):
-        res[t] = jack_pow(corr[t], d)
+        if corr[t] is not None:
+            res[t] = jack_pow(corr[t], d)
 
     return res
 
