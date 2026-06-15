@@ -786,13 +786,18 @@ def fit_effective_mass(jack_C, fit_range=None, correlated=True):
     cov = jackknife_covariance(jack_C)
     params, chi2 = jackknife_fit(jack_C, x, cnst_func, p0=[1.0], fit_range=fit_range, cov=cov, correlated=correlated)
 
-    # Fit on full-sample thetas to get theta for the output Jackknife  ← new
+    # Fit on full-sample thetas to get theta for the output Jackknife 
     tmin, tmax = fit_range if fit_range is not None else (0, len(jack_C))
     y_full = np.array([jk.theta for jk in jack_C[tmin:tmax]])
     x_fit = x[tmin:tmax]
-    popt_full, _ = curve_fit(cnst_func, x_fit, y_full, p0=[1.0])  # ← new
+    if correlated=True:
+        cov_fit = cov[tmin:tmax, tmin:tmax]
+        popt_full, _ = curve_fit(cnst_func, x_fit, y_full, p0=[1.0],
+                                 sigma=cov_fit, absolute_sigma=True)
+    else:
+        popt_full, _ = curve_fit(cnst_func, x_fit, y_full, p0=[1.0])  
 
-    E = Jackknife.from_samples(params[:, 0], theta=popt_full[0])  # ← theta added
+    E = Jackknife.from_samples(params[:, 0], theta=popt_full[0])  
     return E, chi2
     
 
