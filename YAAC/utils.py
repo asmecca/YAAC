@@ -790,7 +790,7 @@ def fit_effective_mass(jack_C, fit_range=None, correlated=True):
     tmin, tmax = fit_range if fit_range is not None else (0, len(jack_C))
     y_full = np.array([jk.theta for jk in jack_C[tmin:tmax]])
     x_fit = x[tmin:tmax]
-    if correlated=True:
+    if correlated==True:
         cov_fit = cov[tmin:tmax, tmin:tmax]
         popt_full, _ = curve_fit(cnst_func, x_fit, y_full, p0=[1.0],
                                  sigma=cov_fit, absolute_sigma=True)
