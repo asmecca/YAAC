@@ -709,6 +709,20 @@ def meff_cosh_from_ratio(R, t, T, guess):
     m = find_root_newton(R, root_function, guess)
     return np.abs(m)
 
+def meff_sinh_from_ratio(R, t, T, guess):
+    """
+    Solve cosh effective mass equation using a guess-based solver.
+    """
+
+    x = t - T / 2
+    y = t + 1 - T / 2
+
+    def root_function(m, d):
+        return np.sinh(m * x) / np.sinh(m * y) - d
+
+    m = find_root_newton(R, root_function, guess)
+    return np.abs(m)
+
 def log_meff_guess(jack_C_t, jack_C_tp1):
     """
     Central-value log effective mass used as initial guess.
@@ -730,6 +744,7 @@ def effective_mass(jack_C, method="cosh"):
         Effective mass definition.
         Currently supported:
         - "cosh": solves C(t)/C(t+1) = cosh(m * (t-T/2)) / cosh(m * (t+1 - T/2))
+        - "sinh": solves C(t)/C(t+1) = sinh(m * (t-T/2)) / sinh(m * (t+1 - T/2))
         - "log" : log(C(t) / C(t+1))
 
     Returns
@@ -788,6 +803,35 @@ def effective_mass(jack_C, method="cosh"):
                 continue
             
             theta = meff_cosh_from_ratio(jk_ratio.theta, t, Nt, guess) if (  
+                np.isfinite(jk_ratio.theta) and jk_ratio.theta > 0) else np.nan
+
+        elif method == "sinh":
+            guess = log_meff_guess(jack_C[t], jack_C[t + 1])
+            if guess is not None:
+                guess = abs(guess)
+
+            if guess is None or not np.isfinite(guess):
+                jack_meff.append(None)
+                continue
+            
+            samples = []
+
+            for R in jk_ratio.jk_samples:
+                if not np.isfinite(R) or R <= 0:
+                    samples.append(np.nan)
+                else:
+                    samples.append(
+                        meff_sinh_from_ratio(R, t, Nt, guess)
+                    )
+
+            samples = np.array(samples)
+
+            # If every sample is NaN the timeslice is unusable
+            if np.all(np.isnan(samples)):
+                jack_meff.append(None)
+                continue
+            
+            theta = meff_sinh_from_ratio(jk_ratio.theta, t, Nt, guess) if (  
                 np.isfinite(jk_ratio.theta) and jk_ratio.theta > 0) else np.nan
             
         else:
