@@ -587,6 +587,38 @@ def jack_exp(jk1):
     samples = np.exp(jk1.jk_samples)
     return Jackknife.from_samples(samples, theta=np.exp(jk1.theta))
 
+def jack_cosh(jk1):
+    """
+    Apply cosh to a Jackknife object sample-by-sample.
+
+    Parameters
+    ----------
+    jk1 : Jackknife
+
+    Returns
+    -------
+    Jackknife
+        New jackknifed object representing cosh(jk1)
+    """
+    samples = np.cosh(jk1.jk_samples)
+    return Jackknife.from_samples(samples, theta=np.exp(jk1.theta))
+
+def jack_sinh(jk1):
+    """
+    Apply cosh to a Jackknife object sample-by-sample.
+
+    Parameters
+    ----------
+    jk1 : Jackknife
+
+    Returns
+    -------
+    Jackknife
+        New jackknifed object representing sinh(jk1)
+    """
+    samples = np.sinh(jk1.jk_samples)
+    return Jackknife.from_samples(samples, theta=np.exp(jk1.theta))
+
 def jack_pow(jk1, d):
     """
     Raise a Jackknife object to a power sample-by-sample.
