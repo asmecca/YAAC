@@ -12,7 +12,7 @@ if os.path.isfile(_MPLSTYLE):
 
 class Jackknife:
     
-    def __init__(self, data, estimator=lambda x: np.mean(x), binsize=None, nbins=None):
+    def __init__(self, data, estimator=lambda x: np.mean(x), binsize=None, nbins=None, weighted=False):
         """
         Parameters
         ----------
@@ -24,10 +24,11 @@ class Jackknife:
         self.data = np.asarray(data)
         self.estimator = estimator
         if binsize is not None or nbins is not None:
-            self.data = bin_data(self.data, binsize=binsize, nbins=nbins, axis=0)
+            self.data = bin_data(self.data, binsize=binsize, nbins=nbins, axis=0, weighted=weighted)
         self.N = self.data.shape[0]
         self.binsize = binsize
         self.nbins_requested = nbins
+        self.weighted = weighted
 
         self._compute()
 
@@ -78,7 +79,28 @@ class Jackknife:
 def _get_jackknife_samples(jk):
     return np.asarray(jk.jk_samples)
 
-def bin_data(data, binsize=None, nbins=None, axis=0, drop_remainder=True):
+def _fractional_bin_weights(N, nbins, eps=1e-10):
+    """
+    Weight matrix W (shape (nbins, N)) for fractional binning of N
+    configurations into `nbins` equal-width bins, with no truncation.
+    Port of jackknivesFill (sunpho84/tranalisi, lib/jack.cpp).
+    """
+    clust = N / nbins
+    W = np.zeros((nbins, N), dtype=float)
+    for b in range(nbins):
+        bin_begin = b * clust
+        bin_end = bin_begin + clust
+        pos = bin_begin
+        while bin_end - pos > eps:
+            iconf = int(np.floor(pos + eps))
+            iconf = min(iconf, N - 1)          # guard against fp overshoot
+            beg = pos
+            end = min(bin_end, iconf + 1.0)
+            W[b, iconf] += end - beg
+            pos = end
+    return W
+
+def bin_data(data, binsize=None, nbins=None, axis=0, drop_remainder=True, weighted=False):
     """
     Bin/block raw data along one axis by averaging inside each bin.
     """
@@ -89,6 +111,26 @@ def bin_data(data, binsize=None, nbins=None, axis=0, drop_remainder=True):
 
     if (binsize is None) == (nbins is None):
         raise ValueError("Give exactly one of binsize or nbins")
+
+    if weighted:
+        if nbins is not None:
+            if not isinstance(nbins, int) or nbins <= 0:
+                raise ValueError("nbins must be a positive integer")
+            if nbins > N:
+                raise ValueError("nbins cannot be larger than the data length")
+            nbins_eff = nbins
+        else:
+            if not isinstance(binsize, int) or binsize <= 0:
+                raise ValueError("binsize must be a positive integer")
+            nbins_eff = int(round(N / binsize))
+            if nbins_eff < 1:
+                raise ValueError("Not enough data for one full bin")
+
+        clust = N / nbins_eff
+        W = _fractional_bin_weights(N, nbins_eff)
+        # weighted mean per bin: sum_i W[b,i] x_i / clust  (weights sum to clust)
+        x = np.tensordot(W, x, axes=([1], [0])) / clust
+        return np.moveaxis(x, 0, axis)
 
     if binsize is not None:
         if not isinstance(binsize, int) or binsize <= 0:
@@ -118,7 +160,7 @@ def bin_data(data, binsize=None, nbins=None, axis=0, drop_remainder=True):
     return np.moveaxis(x, 0, axis)
 
 def read_corr(filename, tempo=None, from_samples=False, col2=False,
-              binsize=None, nbins=None,Nconf=None):
+              binsize=None, nbins=None,Nconf=None,weighted=False):
     """
     Reading Correlator:
       Data file must have the following first line:
@@ -223,6 +265,7 @@ def plot_multi_corr(list_corr,xlabel,ylabel,xlim=None,ylim=None,yscale=None,list
     if yscale is not None:
         plt.yscale(yscale)
     for i in range(len(list_corr)):
+        label_used = False
         color = colors[i % len(colors)]
         marker = markers[i % len(markers)]        
         corr = list_corr[i]
@@ -244,8 +287,9 @@ def plot_multi_corr(list_corr,xlabel,ylabel,xlim=None,ylim=None,yscale=None,list
             data_label = None
         for t in range(len(corr)):
             if corr[t] is not None and corr[t] is not np.nan:
-                label = data_label if t == 0 else None
+                label = data_label if label_used is False else None
                 plt.errorbar(x=t + i * offset, y=corr[t].mean, yerr=corr[t].std, color=color, fmt=marker,mfc='none', label=label,alpha=alpha)
+                label_used = True
         if data_label is not None:
             plt.legend(loc='best', ncol=ncol)
     if save is not None:
@@ -407,6 +451,8 @@ def jack_mul(jk1, jk2):
     """
     if jk1.N != jk2.N:
         raise ValueError("Jackknife objects must have the same N")
+    if jk1 is None or jk2 is None:
+        return None
 
     samples = jk1.jk_samples * jk2.jk_samples
     return Jackknife.from_samples(samples, theta=jk1.theta * jk2.theta)
@@ -427,6 +473,8 @@ def jack_mul_d(jk1, d):
     """
     if not np.isscalar(d):
         raise ValueError("d must be a scalar")
+    if jk1 is None:
+        return None
 
     samples = jk1.jk_samples * d
     return Jackknife.from_samples(samples, theta=jk1.theta * d)
@@ -469,7 +517,8 @@ def multiply_corrs(corr1, corr2):
 
     res = [None] * len(corr1)
     for t in range(len(corr1)):
-        res[t] = jack_mul(corr1[t], corr2[t])
+        if corr1[t] is not None and corr2[t] is not None:
+            res[t] = jack_mul(corr1[t], corr2[t])
 
     return res
 
@@ -515,6 +564,8 @@ def jack_div(jk1, jk2, check_zero=True):
         New jackknifed object representing the quotient.
         Samples whose denominator is zero are set to NaN.
     """
+    if jk1 is None or jk2 is None:
+        return None
     if jk1.N != jk2.N:
         raise ValueError("Jackknife objects must have the same N")
 
@@ -584,6 +635,8 @@ def jack_exp(jk1):
     Jackknife
         New jackknifed object representing exp(jk1)
     """
+    if jk1 is None:
+        return None
     samples = np.exp(jk1.jk_samples)
     return Jackknife.from_samples(samples, theta=np.exp(jk1.theta))
 
@@ -600,6 +653,8 @@ def jack_cosh(jk1):
     Jackknife
         New jackknifed object representing cosh(jk1)
     """
+    if jk1 is None:
+        return None
     samples = np.cosh(jk1.jk_samples)
     return Jackknife.from_samples(samples, theta=np.exp(jk1.theta))
 
@@ -616,6 +671,8 @@ def jack_sinh(jk1):
     Jackknife
         New jackknifed object representing sinh(jk1)
     """
+    if jk1 is None:
+        return None
     samples = np.sinh(jk1.jk_samples)
     return Jackknife.from_samples(samples, theta=np.exp(jk1.theta))
 
@@ -633,6 +690,8 @@ def jack_pow(jk1, d):
     Jackknife
         New jackknifed object representing jk1 ** d
     """
+    if jk1 is None:
+        return None
     samples = np.power(jk1.jk_samples, d)
     return Jackknife.from_samples(samples, theta=np.power(jk1.theta, d))
 
@@ -732,7 +791,7 @@ def log_meff_guess(jack_C_t, jack_C_tp1):
 
     return np.log(jack_C_t.mean / jack_C_tp1.mean)
 
-def effective_mass(jack_C, method="cosh"):
+def effective_mass(jack_C, method="cosh",T=None):
     """
     Compute the effective mass from a jackknifed correlator.
 
@@ -755,11 +814,16 @@ def effective_mass(jack_C, method="cosh"):
 
     jack_C = list(jack_C)
     Nt = len(jack_C)
+    if T is None:
+        T = Nt
 
     jack_meff = []
     
     for t in range(Nt - 1):
         # Ratio C(t) / C(t+1); zero denominator samples become NaN
+        if jack_C[t] is None or jack_C[t+1] is None:
+            jack_meff.append(None)
+            continue
         jk_ratio = jack_div(jack_C[t], jack_C[t + 1])
 
         if method == "log":
@@ -792,7 +856,7 @@ def effective_mass(jack_C, method="cosh"):
                     samples.append(np.nan)
                 else:
                     samples.append(
-                        meff_cosh_from_ratio(R, t, Nt, guess)
+                        meff_cosh_from_ratio(R, t, T, guess)
                     )
 
             samples = np.array(samples)
@@ -802,7 +866,7 @@ def effective_mass(jack_C, method="cosh"):
                 jack_meff.append(None)
                 continue
             
-            theta = meff_cosh_from_ratio(jk_ratio.theta, t, Nt, guess) if (  
+            theta = meff_cosh_from_ratio(jk_ratio.theta, t, T, guess) if (  
                 np.isfinite(jk_ratio.theta) and jk_ratio.theta > 0) else np.nan
 
         elif method == "sinh":
@@ -821,7 +885,7 @@ def effective_mass(jack_C, method="cosh"):
                     samples.append(np.nan)
                 else:
                     samples.append(
-                        meff_sinh_from_ratio(R, t, Nt, guess)
+                        meff_sinh_from_ratio(R, t, T, guess)
                     )
 
             samples = np.array(samples)
@@ -831,7 +895,7 @@ def effective_mass(jack_C, method="cosh"):
                 jack_meff.append(None)
                 continue
             
-            theta = meff_sinh_from_ratio(jk_ratio.theta, t, Nt, guess) if (  
+            theta = meff_sinh_from_ratio(jk_ratio.theta, t, T, guess) if (  
                 np.isfinite(jk_ratio.theta) and jk_ratio.theta > 0) else np.nan
             
         else:
