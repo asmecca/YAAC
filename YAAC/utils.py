@@ -246,10 +246,16 @@ def plot_multi_corr(list_corr,xlabel,ylabel,xlim=None,ylim=None,yscale=None,list
     plt.xlabel(xlabel)
     if hline is not None:
         if isinstance(hline, (int, float, complex)):
-            plt.axhline(y=hline,color='black',ls='--',label=hlabel)
+            if hlabel is not None:
+                plt.axhline(y=hline,color='black',ls='--',label=hlabel)
+            else:
+                plt.axhline(y=hline,color='black',ls='--')
         else:
             for i in range(0,len(hline)):
-                plt.axhline(y=hline[i],color=colors[i % len(colors)],ls='--',label=hlabel[i])
+                if hlabel is not None:
+                    plt.axhline(y=hline[i],color=colors[i % len(colors)],ls='--',label=hlabel[i])
+                else:
+                    plt.axhline(y=hline[i],color=colors[i % len(colors)],ls='--')
     if herr is not None:
         plt.axhspan(hline-herr,hline+herr,color='gray',alpha=0.4)    
     if vline is not None:
