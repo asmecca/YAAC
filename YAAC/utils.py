@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import itertools
 import os
+import warnings
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -943,9 +944,236 @@ def fit_effective_mass(jack_C, fit_range=None, correlated=True):
     else:
         popt_full, _ = curve_fit(cnst_func, x_fit, y_full, p0=[1.0])  
 
-    E = Jackknife.from_samples(params[:, 0], theta=popt_full[0])  
+    E = Jackknife.from_samples(params[:, 0], theta=popt_full[0])
     return E, chi2
-    
+
+
+def fit_constant_AIC(jack_C, tmin_list=None, tmax_list=None, correlated=True,
+                      min_points=None, total_points=None, verbose=False):
+    """
+    AIC-weighted model average of constant ("plateau") fits, built on top
+    of fit_effective_mass, scanned over a set of candidate fit windows.
+
+    Rather than picking a single fit window [tmin, tmax) by eye, this
+    fits the constant in every candidate window, ranks the windows with
+    an Akaike Information Criterion that penalises both extra fit
+    parameters and data points *discarded* relative to the full available
+    range (the AIC = chi2 + 2*n_par + 2*n_cut prescription used for
+    lattice-QCD fit-window averaging, see e.g. Jay & Neil, arXiv:2008.01069),
+    and returns the AIC-weighted average over windows.
+
+    The averaging is propagated through the jackknife samples themselves:
+    fixed AIC weights (derived once from each window's central-value fit)
+    are applied jackknife-sample-by-jackknife-sample, and the jackknife
+    variance is taken of the resulting combined samples. This means the
+    returned error on 'E' already contains both the ordinary statistical
+    (jackknife) uncertainty and the "fit systematic" coming from the
+    choice of window -- with no separate, ad hoc quadrature-sum step, and
+    with the correct correlations between overlapping windows (since they
+    are built from the same underlying jackknife samples) automatically
+    included.
+
+    Parameters
+    ----------
+    jack_C : list of Jackknife
+        Correlator or effective-mass array, one Jackknife per timeslice,
+        with no None entries (same requirement as fit_effective_mass --
+        trim the array first if some timeslices are unusable).
+    tmin_list : iterable of int or None
+        Candidate window start indices. Default: every tmin from 0 up to
+        Nt - min_points, i.e. all windows of at least min_points slices.
+    tmax_list : iterable of int or None
+        Candidate window end indices (exclusive, same slicing convention
+        as fit_range elsewhere in this module). Default: [len(jack_C)],
+        i.e. only tmin is scanned and every window runs to the end of the
+        data -- the usual plateau-fit setup. Pass an explicit list to
+        also scan tmax.
+    correlated : bool
+        Forwarded to fit_effective_mass. Strongly recommended to leave
+        this True: in this module the uncorrelated branch of
+        jackknife_fit is an *unweighted* least-squares fit (no 1/sigma^2
+        weighting at all), so its chi2 is not on a proper statistical
+        scale and AIC comparisons across windows of different sizes are
+        not meaningful. A warning is issued if correlated=False.
+    min_points : int or None
+        Minimum number of timeslices required in a window (default 4,
+        i.e. dof = 3 for a 1-parameter fit) -- avoids trusting chi2 from
+        windows with almost no information. Also acts as a basic guard
+        against covariance matrices that are too small/noisy to invert
+        reliably; if you scan very wide windows relative to the number of
+        jackknife samples N, treat the correlated chi2/AIC with caution
+        (the estimated covariance itself becomes noisy once the window
+        size approaches N).
+    total_points : int or None
+        Reference number of data points used to compute how many points
+        each window discards, n_cut = total_points - n_window, which
+        enters the AIC as +2*n_cut. Default: len(jack_C).
+    verbose : bool
+        If True, print a table of windows ranked by AIC weight.
+
+    Returns
+    -------
+    result : dict with keys
+        'E'               : Jackknife, the AIC-weighted model average
+        'windows'         : list of (tmin, tmax) windows actually fitted
+        'weights'         : AIC weight per window (same order), sums to 1
+        'chi2'            : chi^2 (not reduced) per window
+        'dof'             : degrees of freedom per window
+        'AIC'             : AIC value per window
+        'E_list'          : list of per-window Jackknife fit results
+        'best_window'     : the single window with the largest AIC weight
+        'stat_only_error' : naive weighted-quadrature statistical error
+                             (ignores inter-window correlations and the
+                             window-choice systematic) -- reported only
+                             for comparison with E.std, which is the
+                             properly propagated total error.
+    """
+    if correlated is not True:
+        warnings.warn(
+            "fit_constant_AIC called with correlated=False: this "
+            "codebase's uncorrelated fit branch is an unweighted "
+            "least-squares fit, so chi2/AIC are not on a proper "
+            "statistical scale here. Interpret the resulting weights "
+            "with caution, or use correlated=True.",
+            stacklevel=2,
+        )
+
+    Nt = len(jack_C)
+    npar = 1
+
+    if min_points is None:
+        min_points = 4
+    if total_points is None:
+        total_points = Nt
+    if tmax_list is None:
+        tmax_list = [Nt]
+    if tmin_list is None:
+        tmin_list = range(0, Nt - min_points + 1)
+
+    windows = sorted({
+        (tmin, tmax)
+        for tmax in tmax_list
+        for tmin in tmin_list
+        if 0 <= tmin < tmax <= Nt and (tmax - tmin) >= min_points
+    })
+    if not windows:
+        raise ValueError("No valid fit windows: relax min_points or the tmin/tmax ranges.")
+
+    E_list, chi2_list, dof_list, aic_list, used_windows = [], [], [], [], []
+
+    for (tmin, tmax) in windows:
+        n = tmax - tmin
+        dof = n - npar
+        try:
+            E_i, chi2red_i = fit_effective_mass(jack_C, fit_range=(tmin, tmax), correlated=correlated)
+        except (np.linalg.LinAlgError, RuntimeError) as exc:
+            if verbose:
+                print(f"[{tmin:3d},{tmax:3d})  skipped ({exc})")
+            continue
+
+        if not np.isfinite(chi2red_i) or not np.isfinite(E_i.theta):
+            if verbose:
+                print(f"[{tmin:3d},{tmax:3d})  skipped (non-finite fit result)")
+            continue
+
+        # chi2 of the central-value fit, reconstructed from the reduced
+        # chi2 that fit_effective_mass returns (the median reduced chi2
+        # across jackknife replicas -- an O(1/N) approximation to the
+        # central-value chi2/dof, since each replica differs from the
+        # central fit by leaving out only one of N samples).
+        chi2_i = chi2red_i * dof
+        n_cut = total_points - n
+        aic_i = chi2_i + 2 * npar + 2 * n_cut
+
+        used_windows.append((tmin, tmax))
+        E_list.append(E_i)
+        chi2_list.append(chi2_i)
+        dof_list.append(dof)
+        aic_list.append(aic_i)
+
+    if not used_windows:
+        raise RuntimeError("All candidate windows failed to fit.")
+
+    aic_arr = np.asarray(aic_list)
+    w = np.exp(-0.5 * (aic_arr - aic_arr.min()))
+    w /= w.sum()
+
+    N = E_list[0].N
+    if any(E_i.N != N for E_i in E_list):
+        raise ValueError("Inconsistent number of jackknife samples across windows.")
+
+    # Model average, propagated sample-by-sample through the jackknife
+    # (fixed weights from the central-value AIC, applied to every replica).
+    theta_avg = sum(wi * E_i.theta for wi, E_i in zip(w, E_list))
+    samples_avg = np.zeros(N)
+    for wi, E_i in zip(w, E_list):
+        samples_avg += wi * E_i.jk_samples
+    E_AIC = Jackknife.from_samples(samples_avg, theta=theta_avg)
+
+    stat_only_error = np.sqrt(sum((wi * E_i.std) ** 2 for wi, E_i in zip(w, E_list)))
+
+    if verbose:
+        header = f"{'window':>14}  {'n':>3}  {'chi2/dof':>9}  {'AIC':>10}  {'weight':>7}  {'E':>14}"
+        print(header)
+        for idx in np.argsort(w)[::-1]:
+            tmin, tmax = used_windows[idx]
+            n = tmax - tmin
+            print(f"[{tmin:4d},{tmax:4d})  {n:3d}  {chi2_list[idx] / dof_list[idx]:9.3f}  "
+                  f"{aic_arr[idx]:10.3f}  {w[idx]:7.4f}  "
+                  f"{format_with_error(E_list[idx].theta, E_list[idx].std):>14}")
+        print(f"\nAIC-weighted average: {format_with_error(E_AIC.theta, E_AIC.std)}"
+              f"  (naive stat-only error would be {stat_only_error:.3g})")
+
+    return {
+        "E": E_AIC,
+        "windows": used_windows,
+        "weights": w,
+        "chi2": np.asarray(chi2_list),
+        "dof": np.asarray(dof_list),
+        "AIC": aic_arr,
+        "E_list": E_list,
+        "best_window": used_windows[int(np.argmax(w))],
+        "stat_only_error": stat_only_error,
+    }
+
+
+def plot_aic_window_scan(result, xlabel='t_min', ylabel='E', save=None):
+    """
+    Diagnostic plot for fit_constant_AIC(): per-window fit results plotted
+    against t_min (marker color = AIC weight), with the AIC-weighted
+    average overlaid as a horizontal line/band.
+
+    Assumes a single tmax was used (the default, tmax-scan-off, use case
+    of fit_constant_AIC). For a full 2D (tmin, tmax) scan, inspect
+    result['windows'] / result['weights'] directly instead.
+    """
+    windows = result['windows']
+    E_list = result['E_list']
+    w = np.asarray(result['weights'])
+
+    tmins = np.array([tmin for tmin, tmax in windows])
+    means = np.array([E.theta for E in E_list])
+    errs = np.array([E.std for E in E_list])
+
+    order = np.argsort(tmins)
+    tmins, means, errs, ws = tmins[order], means[order], errs[order], w[order]
+
+    sizes = 20 + 200 * (ws / ws.max())
+    plt.errorbar(tmins, means, yerr=errs, fmt='none', ecolor='gray', alpha=0.6, zorder=2)
+    sc = plt.scatter(tmins, means, s=sizes, c=ws, cmap='viridis', zorder=3)
+    plt.colorbar(sc, label='AIC weight')
+
+    E_avg, E_err = result['E'].theta, result['E'].std
+    plt.axhline(E_avg, color='black', ls='--', label='AIC average')
+    plt.axhspan(E_avg - E_err, E_avg + E_err, color='gray', alpha=0.3)
+
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.legend(loc='best')
+    if save is not None:
+        plt.gcf().savefig(save)
+    plt.show()
+
 
 def jackknife_fit(corrs, x, fit_func, p0, fit_range=None, correlated=False, cov=None, absolute_sigma=True):
     """
