@@ -950,7 +950,7 @@ def fit_effective_mass(jack_C, fit_range=None, correlated=True):
 
 
 def fit_constant_AIC(jack_C, tmin_list=None, tmax_list=None, correlated=True,
-                      min_points=None, total_points=None, verbose=False):
+                      min_points=4, total_points=None, verbose=False):
     """
     Parameters
     ----------
