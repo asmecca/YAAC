@@ -6,6 +6,7 @@ import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+from scipy.stats import chi2 as chi2_dist
 
 _MPLSTYLE = os.path.join(os.path.dirname(__file__), 'myplot.mplstyle')
 if os.path.isfile(_MPLSTYLE):
@@ -951,34 +952,9 @@ def fit_effective_mass(jack_C, fit_range=None, correlated=True):
 def fit_constant_AIC(jack_C, tmin_list=None, tmax_list=None, correlated=True,
                       min_points=None, total_points=None, verbose=False):
     """
-    AIC-weighted model average of constant ("plateau") fits, built on top
-    of fit_effective_mass, scanned over a set of candidate fit windows.
-
-    Rather than picking a single fit window [tmin, tmax) by eye, this
-    fits the constant in every candidate window, ranks the windows with
-    an Akaike Information Criterion that penalises both extra fit
-    parameters and data points *discarded* relative to the full available
-    range (the AIC = chi2 + 2*n_par + 2*n_cut prescription used for
-    lattice-QCD fit-window averaging, see e.g. Jay & Neil, arXiv:2008.01069),
-    and returns the AIC-weighted average over windows.
-
-    The averaging is propagated through the jackknife samples themselves:
-    fixed AIC weights (derived once from each window's central-value fit)
-    are applied jackknife-sample-by-jackknife-sample, and the jackknife
-    variance is taken of the resulting combined samples. This means the
-    returned error on 'E' already contains both the ordinary statistical
-    (jackknife) uncertainty and the "fit systematic" coming from the
-    choice of window -- with no separate, ad hoc quadrature-sum step, and
-    with the correct correlations between overlapping windows (since they
-    are built from the same underlying jackknife samples) automatically
-    included.
-
     Parameters
     ----------
     jack_C : list of Jackknife
-        Correlator or effective-mass array, one Jackknife per timeslice,
-        with no None entries (same requirement as fit_effective_mass --
-        trim the array first if some timeslices are unusable).
     tmin_list : iterable of int or None
         Candidate window start indices. Default: every tmin from 0 up to
         Nt - min_points, i.e. all windows of at least min_points slices.
@@ -1027,6 +1003,30 @@ def fit_constant_AIC(jack_C, tmin_list=None, tmax_list=None, correlated=True,
                              window-choice systematic) -- reported only
                              for comparison with E.std, which is the
                              properly propagated total error.
+        'p_value'         : p-value per window (chi2 survival function
+                             evaluated at that window's own dof)
+        'chi2_dof_best'   : reduced chi2 of the highest-weight window --
+                             quote this as *the* chi2/dof of the procedure
+        'p_best'          : p-value of the highest-weight window
+        'chi2_dof_avg'    : AIC-weighted average of chi2/dof across all
+                             windows, sum_i w_i * (chi2_i/dof_i) -- a
+                             useful cross-check that the average isn't
+                             dominated by one atypical window, but not a
+                             substitute for chi2_dof_best (do NOT average
+                             the raw, un-reduced 'chi2' values -- they sit
+                             on different dof per window and an average of
+                             them has no clean statistical meaning)
+        'p_avg'           : AIC-weighted average of the per-window p-values
+
+    Notes
+    -----
+    When quoting a single chi2/dof for this procedure, report
+    'chi2_dof_best' (and 'p_best') -- the AIC average is a mixture of
+    fits with different dof, so there isn't a single well-defined dof to
+    reduce a combined chi2 by. 'chi2_dof_avg' is a useful secondary
+    sanity check (it stays close to 1 only if the fits going into the
+    average are collectively good), but the highest-weight window's own
+    chi2/dof is what should be quoted as "the" fit quality.
     """
     if correlated is not True:
         warnings.warn(
@@ -1112,28 +1112,49 @@ def fit_constant_AIC(jack_C, tmin_list=None, tmax_list=None, correlated=True,
 
     stat_only_error = np.sqrt(sum((wi * E_i.std) ** 2 for wi, E_i in zip(w, E_list)))
 
+    chi2_arr = np.asarray(chi2_list)
+    dof_arr = np.asarray(dof_list)
+    chi2_dof_arr = chi2_arr / dof_arr
+    p_arr = chi2_dist.sf(chi2_arr, dof_arr)
+
+    idx_best = int(np.argmax(w))
+    chi2_dof_best = chi2_dof_arr[idx_best]
+    p_best = p_arr[idx_best]
+    chi2_dof_avg = float(np.sum(w * chi2_dof_arr))
+    p_avg = float(np.sum(w * p_arr))
+
     if verbose:
-        header = f"{'window':>14}  {'n':>3}  {'chi2/dof':>9}  {'AIC':>10}  {'weight':>7}  {'E':>14}"
+        header = (f"{'window':>14}  {'n':>3}  {'chi2/dof':>9}  {'p':>7}  "
+                  f"{'AIC':>10}  {'weight':>7}  {'E':>14}")
         print(header)
         for idx in np.argsort(w)[::-1]:
             tmin, tmax = used_windows[idx]
             n = tmax - tmin
-            print(f"[{tmin:4d},{tmax:4d})  {n:3d}  {chi2_list[idx] / dof_list[idx]:9.3f}  "
+            marker = " *" if idx == idx_best else ""
+            print(f"[{tmin:4d},{tmax:4d})  {n:3d}  {chi2_dof_arr[idx]:9.3f}  {p_arr[idx]:7.3f}  "
                   f"{aic_arr[idx]:10.3f}  {w[idx]:7.4f}  "
-                  f"{format_with_error(E_list[idx].theta, E_list[idx].std):>14}")
+                  f"{format_with_error(E_list[idx].theta, E_list[idx].std):>14}{marker}")
         print(f"\nAIC-weighted average: {format_with_error(E_AIC.theta, E_AIC.std)}"
               f"  (naive stat-only error would be {stat_only_error:.3g})")
+        print(f"chi2/dof to quote (highest-weight window, marked *): "
+              f"{chi2_dof_best:.3f}  (p = {p_best:.3f})")
+        print(f"AIC-weighted <chi2/dof>: {chi2_dof_avg:.3f}  (<p> = {p_avg:.3f})")
 
     return {
         "E": E_AIC,
         "windows": used_windows,
         "weights": w,
-        "chi2": np.asarray(chi2_list),
-        "dof": np.asarray(dof_list),
+        "chi2": chi2_arr,
+        "dof": dof_arr,
         "AIC": aic_arr,
         "E_list": E_list,
-        "best_window": used_windows[int(np.argmax(w))],
+        "best_window": used_windows[idx_best],
         "stat_only_error": stat_only_error,
+        "p_value": p_arr,
+        "chi2_dof_best": chi2_dof_best,
+        "p_best": p_best,
+        "chi2_dof_avg": chi2_dof_avg,
+        "p_avg": p_avg,
     }
 
 
