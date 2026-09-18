@@ -664,7 +664,7 @@ def jack_cosh(jk1):
     if jk1 is None:
         return None
     samples = np.cosh(jk1.jk_samples)
-    return Jackknife.from_samples(samples, theta=np.exp(jk1.theta))
+    return Jackknife.from_samples(samples, theta=np.cosh(jk1.theta))
 
 def jack_sinh(jk1):
     """
@@ -682,7 +682,115 @@ def jack_sinh(jk1):
     if jk1 is None:
         return None
     samples = np.sinh(jk1.jk_samples)
-    return Jackknife.from_samples(samples, theta=np.exp(jk1.theta))
+    return Jackknife.from_samples(samples, theta=np.sinh(jk1.theta))
+
+def jack_sin(jk1):
+    """
+    Apply cosh to a Jackknife object sample-by-sample.
+
+    Parameters
+    ----------
+    jk1 : Jackknife
+
+    Returns
+    -------
+    Jackknife
+        New jackknifed object representing sin(jk1)
+    """
+    if jk1 is None:
+        return None
+    samples = np.sin(jk1.jk_samples)
+    return Jackknife.from_samples(samples, theta=np.sin(jk1.theta))
+
+def jack_cos(jk1):
+    """
+    Apply cosh to a Jackknife object sample-by-sample.
+
+    Parameters
+    ----------
+    jk1 : Jackknife
+
+    Returns
+    -------
+    Jackknife
+        New jackknifed object representing cos(jk1)
+    """
+    if jk1 is None:
+        return None
+    samples = np.cos(jk1.jk_samples)
+    return Jackknife.from_samples(samples, theta=np.cos(jk1.theta))
+
+def jack_arcsin(jk1):
+    """
+    Apply cosh to a Jackknife object sample-by-sample.
+
+    Parameters
+    ----------
+    jk1 : Jackknife
+
+    Returns
+    -------
+    Jackknife
+        New jackknifed object representing arcsin(jk1)
+    """
+    if jk1 is None:
+        return None
+    samples = np.arcsin(jk1.jk_samples)
+    return Jackknife.from_samples(samples, theta=np.arcsin(jk1.theta))
+
+def jack_arccos(jk1):
+    """
+    Apply cosh to a Jackknife object sample-by-sample.
+
+    Parameters
+    ----------
+    jk1 : Jackknife
+
+    Returns
+    -------
+    Jackknife
+        New jackknifed object representing arcos(jk1)
+    """
+    if jk1 is None:
+        return None
+    samples = np.arccos(jk1.jk_samples)
+    return Jackknife.from_samples(samples, theta=np.arccos(jk1.theta))
+
+def jack_tan(jk1):
+    """
+    Apply cosh to a Jackknife object sample-by-sample.
+
+    Parameters
+    ----------
+    jk1 : Jackknife
+
+    Returns
+    -------
+    Jackknife
+        New jackknifed object representing tan(jk1)
+    """
+    if jk1 is None:
+        return None
+    samples = np.tan(jk1.jk_samples)
+    return Jackknife.from_samples(samples, theta=np.tan(jk1.theta))
+
+def jack_arctan(jk1):
+    """
+    Apply cosh to a Jackknife object sample-by-sample.
+
+    Parameters
+    ----------
+    jk1 : Jackknife
+
+    Returns
+    -------
+    Jackknife
+        New jackknifed object representing arctan(jk1)
+    """
+    if jk1 is None:
+        return None
+    samples = np.arctan(jk1.jk_samples)
+    return Jackknife.from_samples(samples, theta=np.arctan(jk1.theta))
 
 def jack_pow(jk1, d):
     """
