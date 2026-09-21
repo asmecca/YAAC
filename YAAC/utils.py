@@ -1444,7 +1444,162 @@ def jackknife_fit(corrs, x, fit_func, p0, fit_range=None, correlated=False, cov=
         chi2_red[i] = chi2 / dof
 
     return params_jack, np.median(chi2_red)
-    
+
+
+def jack_fit_xerr(x, y, fit_func=None, p0=None, fit_range=None,
+                  correlated=True, verbose=False):
+    """
+    Jackknife fit with errors on BOTH x and y (errors-in-variables fit).
+
+    Use this when the abscissae are themselves jackknife observables, e.g.
+    (p*^3/sqrt(s)) cot(delta)  vs  s  for the rho -> pi pi analysis, where
+    both s and y come from the same fitted energies.
+
+    Method
+    ------
+    The data vector is d = (x_1..x_n, y_1..y_n). Its full jackknife
+    covariance C (2n x 2n, from jackknife_covariance, so it contains the
+    x-x, y-y AND x-y correlations) is computed once from the full ensemble.
+    The chi^2 of the model y = f(x, params), with the unknown "true" x values
+    profiled out, is
+
+        chi2(p) = r^T  S(p)^-1  r ,       r = y - f(x, p),
+        S(p)    = Cyy - J Cxy - Cxy^T J + J Cxx J ,   J = diag(f'(x, p)).
+
+    This is exact for a straight line (identical to minimising the joint
+    chi^2 over the parameters AND n latent x values) and first-order
+    ("effective variance") for a non-linear f.
+
+    As in jackknife_fit / fit_effective_mass, the covariance is held fixed
+    and the fit is repeated on every jackknife sample (x^(k), y^(k)); the
+    full-sample values (theta) give the central fit. The returned parameters
+    are Jackknife objects, so their correlations are kept and derived
+    quantities propagate with jack_div, jack_pow, ... (see example below).
+
+    Parameters
+    ----------
+    x, y : sequences of Jackknife, same length n (one per data point).
+        They must have the same number of jackknife samples N.
+    fit_func : callable or None
+        f(x, *params). Default None -> straight line  f = a + b*x, returned
+        as params = [a, b] (intercept, slope), p0 chosen automatically.
+    p0 : array_like or None
+        Initial guess. Required when fit_func is given.
+    fit_range : (imin, imax) or None
+        Use only points imin <= i < imax (same convention as jackknife_fit).
+    correlated : bool
+        True  -> use the full (x,y) covariance between all points.
+        False -> keep only the covariance *within* each point, i.e. var(x_i),
+                 var(y_i) and cov(x_i, y_i); correlations between different
+                 points are dropped. (cov(x_i, y_i) is kept on purpose: it
+                 is usually large when y_i is computed from x_i.)
+        Note the full covariance needs N-1 >= 2n to be non-singular.
+    verbose : bool
+        Print central-value parameters, chi2/dof and any non-converged fits.
+
+    Returns
+    -------
+    params : list of Jackknife, one per fit parameter
+    chi2_red : float
+        chi^2/dof of the central-value fit (dof = n - n_params).
+    """
+    x = list(x)
+    y = list(y)
+    if len(x) != len(y):
+        raise ValueError("x and y must contain the same number of points")
+    if fit_range is not None:
+        imin, imax = fit_range
+        x, y = x[imin:imax], y[imin:imax]
+    n = len(x)
+    if n == 0:
+        raise ValueError("No data points to fit")
+    Nj = x[0].N
+    for jk in x + y:
+        if jk is None or jk.N != Nj:
+            raise ValueError("All Jackknife objects must be non-None and have the same N")
+
+    # ---- model and its x-derivative -------------------------------------
+    linear = fit_func is None
+    x_theta = np.array([jk.theta for jk in x], dtype=float)
+    y_theta = np.array([jk.theta for jk in y], dtype=float)
+    if linear:
+        fit_func = lambda xx, a, b: a + b * xx
+        if p0 is None:
+            slope, icpt = np.polyfit(x_theta, y_theta, 1)
+            p0 = [icpt, slope]
+
+        def fprime(xx, p):
+            return np.full_like(xx, p[1], dtype=float)
+    else:
+        if p0 is None:
+            raise ValueError("p0 is required when fit_func is given")
+
+        def fprime(xx, p):
+            h = 1e-6 * (1.0 + np.abs(xx))
+            return (fit_func(xx + h, *p) - fit_func(xx - h, *p)) / (2.0 * h)
+
+    p0 = np.asarray(p0, dtype=float)
+    npar = len(p0)
+    dof = n - npar
+    if dof <= 0:
+        raise ValueError("Non-positive degrees of freedom")
+
+    # ---- joint (x, y) jackknife covariance, fixed for all samples --------
+    C = jackknife_covariance(x + y)                 # (2n, 2n)
+    Cxx, Cyy, Cxy = C[:n, :n], C[n:, n:], C[:n, n:]  # Cxy[i, j] = cov(x_i, y_j)
+    if not correlated:
+        Cxx = np.diag(np.diag(Cxx))
+        Cyy = np.diag(np.diag(Cyy))
+        Cxy = np.diag(np.diag(Cxy))
+
+    def make_resid(xv, yv):
+        def resid(p):
+            r = yv - fit_func(xv, *p)
+            J = fprime(xv, p)
+            JCxy = J[:, None] * Cxy
+            S = Cyy - JCxy - JCxy.T + J[:, None] * Cxx * J[None, :]
+            try:
+                Lc = np.linalg.cholesky(S)
+            except np.linalg.LinAlgError:
+                raise RuntimeError(
+                    "Effective covariance of the residuals is not positive "
+                    "definite. Too many points for N jackknife samples "
+                    "(need N-1 >= 2n)? Try correlated=False or fewer points.")
+            return np.linalg.solve(Lc, r)
+        return resid
+
+    def do_fit(xv, yv, p_start):
+        sol = least_squares(make_resid(xv, yv), p_start, method='lm',
+                            xtol=1e-14, ftol=1e-14, gtol=1e-14)
+        return sol.x, 2.0 * sol.cost, sol.success
+
+    # ---- central value (full-sample thetas) ------------------------------
+    p_theta, chi2_theta, ok = do_fit(x_theta, y_theta, p0)
+    if not ok:
+        warnings.warn("jack_fit_xerr: central-value fit did not converge", stacklevel=2)
+
+    # ---- one fit per jackknife sample -------------------------------------
+    X = np.stack([jk.jk_samples for jk in x], axis=1)   # (Nj, n)
+    Y = np.stack([jk.jk_samples for jk in y], axis=1)
+    P = np.zeros((Nj, npar))
+    n_bad = 0
+    for k in range(Nj):
+        P[k], _, ok_k = do_fit(X[k], Y[k], p_theta)
+        n_bad += (not ok_k)
+    if n_bad:
+        warnings.warn(f"jack_fit_xerr: {n_bad}/{Nj} jackknife fits did not converge",
+                      stacklevel=2)
+
+    params = [Jackknife.from_samples(P[:, j], theta=p_theta[j]) for j in range(npar)]
+    chi2_red = chi2_theta / dof
+
+    if verbose:
+        for j, pj in enumerate(params):
+            print(f"p[{j}] = {format_with_error(pj.theta, pj.std)}")
+        print(f"chi2/dof = {chi2_red:.3f}  (dof = {dof})")
+
+    return params, chi2_red
+
 
 def format_with_error(value, error, nsig=2):
     """
