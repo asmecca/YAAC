@@ -810,7 +810,7 @@ def jack_degrees(jk1):
     samples = np.degrees(jk1.jk_samples)
     return Jackknife.from_samples(samples, theta=np.degrees(jk1.theta))
 
-def jack_degrees(jk1):
+def jack_radians(jk1):
     """
     Apply cosh to a Jackknife object sample-by-sample.
 
