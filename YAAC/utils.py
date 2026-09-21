@@ -5,7 +5,7 @@ import warnings
 
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.optimize import curve_fit
+from scipy.optimize import curve_fit, least_squares
 from scipy.stats import chi2 as chi2_dist
 
 _MPLSTYLE = os.path.join(os.path.dirname(__file__), 'myplot.mplstyle')
