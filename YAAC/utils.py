@@ -792,6 +792,24 @@ def jack_arctan(jk1):
     samples = np.arctan(jk1.jk_samples)
     return Jackknife.from_samples(samples, theta=np.arctan(jk1.theta))
 
+def jack_degrees(jk1):
+    """
+    Apply cosh to a Jackknife object sample-by-sample.
+
+    Parameters
+    ----------
+    jk1 : Jackknife
+
+    Returns
+    -------
+    Jackknife
+        New jackknifed object representing degrees(jk1)
+    """
+    if jk1 is None:
+        return None
+    samples = np.degrees(jk1.jk_samples)
+    return Jackknife.from_samples(samples, theta=np.degrees(jk1.theta))
+
 def jack_pow(jk1, d):
     """
     Raise a Jackknife object to a power sample-by-sample.
