@@ -1280,8 +1280,8 @@ def fit_constant_AIC(jack_C, tmin_list=None, tmax_list=None, correlated=True,
             marker = " *" if idx == idx_best else ""
             print(f"[{tmin:4d},{tmax:4d})  {n:3d}  {chi2_dof_arr[idx]:9.3f}  {p_arr[idx]:7.3f}  "
                   f"{aic_arr[idx]:10.3f}  {w[idx]:7.4f}  "
-                  f"{format_with_error(E_list[idx].theta, E_list[idx].std):>14}{marker}")
-        print(f"\nAIC-weighted average: {format_with_error(E_AIC.theta, E_AIC.std)}"
+                  f"{format_with_error(E_list[idx]):>14}{marker}")
+        print(f"\nAIC-weighted average: {format_with_error(E_AIC)}"
               f"  (naive stat-only error would be {stat_only_error:.3g})")
         print(f"chi2/dof to quote (highest-weight window, marked *): "
               f"{chi2_dof_best:.3f}  (p = {p_best:.3f})")
@@ -1598,13 +1598,13 @@ def jack_fit_xerr(x, y, fit_func=None, p0=None, fit_range=None,
 
     if verbose:
         for j, pj in enumerate(params):
-            print(f"p[{j}] = {format_with_error(pj.theta, pj.std)}")
+            print(f"p[{j}] = {format_with_error(pj)}")
         print(f"chi2/dof = {chi2_red:.3f}  (dof = {dof})")
 
     return params, chi2_red
 
 
-def format_with_error(value, error, nsig=2):
+def format_with_error(jack, nsig=2):
     """
     Format a value with uncertainty as x.xxx(yy).
  
@@ -1620,6 +1620,8 @@ def format_with_error(value, error, nsig=2):
     nsig : int
         Number of significant digits for the error (default 2).
     """
+    value = jack.mean
+    error = jack.std
     if error <= 0:
         return f"{value}"
  
