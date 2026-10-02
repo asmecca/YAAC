@@ -262,8 +262,8 @@ def plot_multi_corr(list_corr,xlabel,ylabel,xlim=None,ylim=None,yscale=None,list
         if instance(herr, (int, float, complex)):            
             plt.axhspan(hline-herr,hline+herr,color='gray',alpha=0.4)
         else:
-            for i in range(0,len(hline))
-            plt.axhspan(hline[i]-herr[i],hline[i]+herr[i],color=colors[i % len(colors)],alpha=0.3)
+            for i in range(0,len(hline)):
+                plt.axhspan(hline[i]-herr[i],hline[i]+herr[i],color=colors[i % len(colors)],alpha=0.3)
     if vline is not None:
         plt.axvline(x=vline,color='black',ls='--',label=vlabel)
     if verr is not None:
