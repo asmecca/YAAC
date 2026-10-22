@@ -216,6 +216,24 @@ def symmetrise(corr):
         corr[T - t] = sym
     return corr
 
+class PlainPoint:
+    """Minimal stand-in for a Jackknife object: just .mean/.theta and .std."""
+    def __init__(self, mean, std=0.0):
+        self.mean = self.theta = float(mean)
+        self.std = float(std)
+
+def list_to_corr(values, errors=None):
+    """Turn a plain list (+ optional errors) into something the plot routines accept."""
+    if errors is None:
+        errors = np.zeros(len(values))
+    out = []
+    for m, e in zip(values, errors):
+        if m is None or not np.isfinite(m):
+            out.append(None)        # skipped by the plot loops
+        else:
+            out.append(PlainPoint(m, e))
+    return out
+
 def plot_corr(corr, xlabel, ylabel, ylim=None, yscale=None, data_label=None, color='blue', marker='o', ncol=1, save=None, hline=None, hlabel=None, vline=None, vlabel=None):
     # plots jackknife correlator
     for t in range(len(corr)):
@@ -1960,3 +1978,33 @@ def partial_project_state(G, vecs, state=0):
         Gnum[t] = type(Gt[0, 0]).from_samples(num_s, theta=theta)
 
     return Gnum    
+
+def jack_from_mean_std(mean, std, N, rng=None, seed=None):
+    """
+    Build a Jackknife object with N fake jackknife samples for a quantity known
+    only through its mean and standard deviation (Gaussian, uncorrelated with
+    everything else). Its .theta and .mean equal `mean`, and its .std equals `std`.
+
+    N must match the number of jackknife samples (after binning) of the
+    objects you want to combine it with, e.g. N = corr[0].N.
+    """
+    if rng is None:
+        rng = np.random.default_rng(seed)
+    z = rng.standard_normal(N)
+    z -= z.mean()                                   # jackknife mean = mean exactly
+    norm = np.sqrt((N - 1) / N * np.sum(z**2))      # jackknife std of z
+    if std == 0 or norm == 0:
+        samples = np.full(N, float(mean))
+    else:
+        samples = mean + std * z / norm             # jackknife std = std exactly
+    return Jackknife.from_samples(samples, theta=float(mean))
+
+
+def corr_from_mean_std(means, stds, N, seed=None):
+    """
+    Same for a whole correlator given as lists of means and errors per timeslice.
+    Each timeslice gets independent noise (no correlation between timeslices).
+    """
+    rng = np.random.default_rng(seed)
+    return [None if (m is None or s is None) else jack_from_mean_std(m, s, N, rng=rng)
+            for m, s in zip(means, stds)]
