@@ -162,11 +162,28 @@ def bin_data(data, binsize=None, nbins=None, axis=0, drop_remainder=True, weight
     return np.moveaxis(x, 0, axis)
 
 def read_corr(filename, tempo=None, from_samples=False, col2=False,
-              binsize=None, nbins=None,Nconf=None,drop_remainder=True,weighted=False):
+              binsize=None, nbins=None, Nconf=None, drop_remainder=True, weighted=False,
+              conf_min=0, conf_max=None):
     """
     Reading Correlator:
       Data file must have the following first line:
       Ncnfg N_t N_t/2
+
+    Configuration selection (Python slice convention, conf_max excluded):
+      conf_min : int, default 0
+          Index of the first configuration to read.
+      conf_max : int or None, default None
+          Index one past the last configuration to read. None -> read up to
+          the number of configurations in the header (Ncnfg).
+      Nconf : int or None
+          Kept for backward compatibility: number of configurations to read
+          starting from conf_min (i.e. conf_max = conf_min + Nconf).
+          Cannot be combined with conf_max.
+
+      Examples:
+        read_corr(f)                             -> configs 0 .. Ncnfg-1
+        read_corr(f, conf_min=100)               -> configs 100 .. Ncnfg-1
+        read_corr(f, conf_min=100, conf_max=500) -> configs 100 .. 499
     """
     corr = []
 
@@ -185,13 +202,22 @@ def read_corr(filename, tempo=None, from_samples=False, col2=False,
     if tempo is not None:
         time = tempo
 
-    if Nconf is not None:
-        cnfg = Nconf
+    # ---- select configurations [conf_min, conf_max) ----
+    n_avail = len(corr) // time        # configurations actually present in the file
 
-    C = np.zeros((cnfg, time), dtype=float)
-    for i in range(cnfg):
-        for t in range(time):
-            C[i][t] = corr[i * time + t]
+    if Nconf is not None and conf_max is not None:
+        raise ValueError("Give at most one of Nconf and conf_max")
+    if Nconf is not None:
+        conf_max = conf_min + Nconf
+    if conf_max is None:
+        conf_max = cnfg
+
+    if not (0 <= conf_min < conf_max):
+        raise ValueError(f"Need 0 <= conf_min < conf_max, got conf_min={conf_min}, conf_max={conf_max}")
+    if conf_max > n_avail:
+        raise ValueError(f"conf_max={conf_max} exceeds the {n_avail} configurations found in {filename}")
+
+    C = np.asarray(corr[conf_min * time:conf_max * time], dtype=float).reshape(conf_max - conf_min, time)
 
     if (binsize is not None) or (nbins is not None):
         C = bin_data(C, binsize=binsize, nbins=nbins, axis=0, drop_remainder=drop_remainder, weighted=weighted)
