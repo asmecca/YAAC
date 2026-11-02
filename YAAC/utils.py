@@ -345,9 +345,9 @@ def plot_multi_corr(list_corr,xlabel,ylabel,xlim=None,ylim=None,yscale=None,list
             if corr[t] is not None and corr[t] is not np.nan:
                 label = data_label if label_used is False else None
                 if xscale is None:
-                    plt.errorbar(x=t + i * offset, y=corr[t].mean, yerr=corr[t].std, color=color, fmt=marker,mfc='none', label=label,alpha=alpha)
+                    plt.errorbar(x=t + i * offset, y=corr[t].mean, yerr=abs(corr[t].std), color=color, fmt=marker,mfc='none', label=label,alpha=alpha)
                 else:
-                    plt.errorbar(x=t*xscale + i * offset, y=corr[t].mean, yerr=corr[t].std, color=color, fmt=marker,mfc='none', label=label,alpha=alpha)
+                    plt.errorbar(x=t*xscale + i * offset, y=corr[t].mean, yerr=abs(corr[t].std), color=color, fmt=marker,mfc='none', label=label,alpha=alpha)
                 label_used = True
         if data_label is not None:
             plt.legend(loc='best', ncol=ncol)
