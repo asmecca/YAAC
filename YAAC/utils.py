@@ -196,8 +196,9 @@ def read_corr(filename, tempo=None, from_samples=False, col2=False,
 
         for line in f:
             x = line.split()
-            if x[0] != str(cnfg):
-                corr += [float(x[1])] if col2 else [float(x[0])]
+            if not x:
+                continue            
+            corr += [float(x[1])] if col2 else [float(x[0])]
 
     if tempo is not None:
         time = tempo
